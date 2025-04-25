@@ -1,0 +1,111 @@
+export interface Schedule {
+  frequency: 'daily' | 'weekly' | 'monthly' | 'once' | 'hourly' | 'every_x_minutes';
+  interval?: number | null;  // Only for "every_x_minutes" (e.g., 5 for every 5 minutes)
+  day?: string;  // For weekly: 'Monday', 'Tuesday', etc.
+  time?: string; // Format: 'HH:mm'
+  date?: string; // For once: 'YYYY-MM-DD'
+}
+
+export interface LearningSource {
+  name: string;
+  url: string;
+  description: string;
+  content_types: string[];
+}
+
+export interface LearningParameters {
+  topic: string;
+  format: 'article_link' | 'summary' | 'facts';
+  content_types: string[];
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  sources: LearningSource[];
+  summary_length?: 'short' | 'medium' | 'detailed';
+  include_links?: boolean;
+}
+
+export interface ReminderParameters {
+  target: string;
+  priority?: 'low' | 'medium' | 'high';
+}
+
+export interface SummaryParameters {
+  target: string;
+  source?: string;
+  format?: 'short' | 'detailed';
+}
+
+export interface FetchParameters {
+  target: string;
+  count?: number;
+  format?: 'facts' | 'article' | 'summary';
+}
+
+export interface NotificationContent {
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  icon?: string;
+  actions?: Array<{
+    label: string;
+    url?: string;
+    callback?: string;
+  }>;
+  metadata?: {
+    taskId: string;
+    taskType: string;
+    timestamp: string;
+    [key: string]: any;
+  };
+}
+
+export type TaskType = 'reminder' | 'summary' | 'fetch' | 'learning';
+
+export interface Task {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  prompt: string;
+  type: TaskType;
+  source: string | null;
+  schedule: {
+    frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous';
+    interval?: number;
+    time: string | null;
+    day: string | null;
+    date: string | null;
+  } | null;
+  action: string;
+  parameters: ReminderParameters | SummaryParameters | FetchParameters | LearningParameters;
+  previewResult: string;
+  deliveryMethod: 'in-app' | 'email' | 'slack';
+  description: string;
+  logs: Array<{
+    timestamp: string;
+    message: string;
+  }>;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'recurring';
+  lastExecution: string | null;
+  nextExecution: string | null;
+  isActive: boolean;
+}
+
+export interface ChatRequest {
+  prompt: string;
+  deliveryMethod: 'in-app' | 'email';
+}
+
+export interface IntentResponse {
+  intent: string;
+  source: string | null;
+  schedule: string | null;
+  action: string;
+  parameters: Record<string, any>;
+  description: string;
+}
+
+export interface ChatResponse {
+  parsedIntent: IntentResponse;
+  task?: Task;
+  success: boolean;
+  error?: string;
+} 
