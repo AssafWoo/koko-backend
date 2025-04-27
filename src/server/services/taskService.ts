@@ -149,7 +149,7 @@ export const runTask = async (id: string, userId: number): Promise<Task | undefi
         break;
 
       case 'learning':
-        result = `Learning content prepared for: ${(task.parameters as any).topic}`;
+        result = await generateContent('learning', task.parameters);
         break;
     }
     

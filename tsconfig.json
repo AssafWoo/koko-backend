@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2020",
     "module": "CommonJS",
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -13,5 +13,6 @@
       "@server/*": ["src/server/*"]
     }
   },
-  "include": ["src/server/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
 } 

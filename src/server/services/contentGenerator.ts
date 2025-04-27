@@ -6,11 +6,11 @@ const ollama = new Ollama();
 export const generateFacts = async (topic: string, count: number = 2, format: 'bullet' | 'paragraph' = 'bullet'): Promise<string> => {
   try {
     const response = await ollama.chat({
-      model: 'llama2',
+      model: 'llama3:8b',
       messages: [
         {
           role: 'system',
-          content: `You are a helpful assistant that provides interesting and accurate facts about ${topic}. Focus on lesser-known, fascinating, or educational facts.`
+          content: `You are a helpful assistant providing ${count} interesting facts about ${topic}. Focus on lesser-known, fascinating facts. Keep the response concise and limit to 4 paragraphs maximum.`
         },
         {
           role: 'user',
@@ -18,7 +18,7 @@ export const generateFacts = async (topic: string, count: number = 2, format: 'b
             format === 'bullet' 
               ? 'Format each fact as a bullet point starting with •'
               : 'Format as a cohesive paragraph'
-          }.`
+          }. Keep it concise and limit to 4 paragraphs maximum.`
         }
       ]
     });
@@ -35,25 +35,20 @@ export const generateLearning = async (parameters: LearningParameters): Promise<
     const { topic, format, difficulty, sources } = parameters;
     
     const response = await ollama.chat({
-      model: 'llama2',
+      model: 'llama3:8b',
       messages: [
         {
           role: 'system',
-          content: `You are a friendly and engaging teacher explaining ${topic} to a ${difficulty} student.
-          Your goal is to make the content interesting, easy to understand, and memorable.
-          Use analogies, examples, and a conversational tone.
-          Format the content as a lesson with:
-          1. A brief introduction
-          2. Key points or facts
-          3. A real-world example or analogy
-          4. A fun fact or interesting tidbit
-          5. A thought-provoking question to encourage further learning
-
-          Make it feel like a personal conversation with the student.`
+          content: `You are a teacher explaining ${topic} to a ${difficulty} student. Format as:
+          1. Brief intro (1-2 sentences)
+          2. 2-3 key points
+          3. One practical example
+          4. One fun fact
+          Keep it concise and conversational. Limit to 4 paragraphs maximum.`
         },
         {
           role: 'user',
-          content: `Please teach me about ${topic} in a ${difficulty} level.`
+          content: `Please teach me about ${topic} in a ${difficulty} level. Keep it concise and engaging. Limit to 4 paragraphs maximum.`
         }
       ]
     });

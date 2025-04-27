@@ -13,7 +13,7 @@ const pool = new Pool({
 });
 
 export interface User {
-  id: number;
+  id: string;
   username: string;
   password_hash: string;
   created_at: Date;
@@ -21,8 +21,8 @@ export interface User {
 }
 
 export interface Task {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   prompt: string;
   status: string;
   is_active: boolean;
@@ -52,7 +52,7 @@ export const db = {
   },
 
   // Task operations
-  async createTask(userId: number, prompt: string): Promise<Task> {
+  async createTask(userId: string, prompt: string): Promise<Task> {
     const result = await pool.query(
       'INSERT INTO tasks (user_id, prompt, status, is_active) VALUES ($1, $2, $3, $4) RETURNING *',
       [userId, prompt, 'pending', true]
@@ -60,12 +60,12 @@ export const db = {
     return result.rows[0];
   },
 
-  async getTasksByUserId(userId: number): Promise<Task[]> {
+  async getTasksByUserId(userId: string): Promise<Task[]> {
     const result = await pool.query('SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC', [userId]);
     return result.rows;
   },
 
-  async updateTaskStatus(taskId: number, status: string): Promise<Task> {
+  async updateTaskStatus(taskId: string, status: string): Promise<Task> {
     const result = await pool.query(
       'UPDATE tasks SET status = $1, last_execution = NOW() WHERE id = $2 RETURNING *',
       [status, taskId]
@@ -73,7 +73,7 @@ export const db = {
     return result.rows[0];
   },
 
-  async deactivateTask(taskId: number): Promise<Task> {
+  async deactivateTask(taskId: string): Promise<Task> {
     const result = await pool.query(
       'UPDATE tasks SET is_active = false WHERE id = $1 RETURNING *',
       [taskId]
@@ -81,7 +81,7 @@ export const db = {
     return result.rows[0];
   },
 
-  async reactivateTask(taskId: number): Promise<Task> {
+  async reactivateTask(taskId: string): Promise<Task> {
     const result = await pool.query(
       'UPDATE tasks SET is_active = true WHERE id = $1 RETURNING *',
       [taskId]
@@ -89,7 +89,7 @@ export const db = {
     return result.rows[0];
   },
 
-  async deleteTask(taskId: number): Promise<void> {
+  async deleteTask(taskId: string): Promise<void> {
     await pool.query('DELETE FROM tasks WHERE id = $1', [taskId]);
   },
 }; 

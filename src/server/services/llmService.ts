@@ -10,6 +10,74 @@ import type {
 
 const ollama = new Ollama();
 
+export const generateTaskContent = async (task: Task): Promise<string> => {
+  try {
+    const response = await ollama.chat({
+      model: 'llama3:8b',
+      messages: [
+        {
+          role: 'system',
+          content: `Generate high-quality content for task:
+Type: ${task.type}
+Description: ${task.description}
+Parameters: ${JSON.stringify(task.parameters)}
+
+Guidelines:
+1. Relevance: Match task purpose
+2. Quality: Clear language, examples, consistent tone
+3. Structure: Logical flow, proper formatting
+4. Engagement: Interesting, active voice, actionable
+
+Generate content following these guidelines.`
+        },
+        {
+          role: 'user',
+          content: `Please generate content for this task: ${task.description}`
+        }
+      ]
+    });
+
+    return response.message.content || 'No content generated';
+  } catch (error) {
+    console.error('Error generating task content:', error);
+    throw new Error('Failed to generate task content');
+  }
+};
+
+export const generateTaskSummary = async (task: Task): Promise<string> => {
+  try {
+    const response = await ollama.chat({
+      model: 'llama3:8b',
+      messages: [
+        {
+          role: 'system',
+          content: `Create concise summary for task:
+Type: ${task.type}
+Description: ${task.description}
+Parameters: ${JSON.stringify(task.parameters)}
+
+Guidelines:
+1. Key Points: Main ideas, critical info
+2. Clarity: Simple language, explain complex
+3. Structure: Logical flow, transitions
+4. Length: Concise, essential info only
+
+Create summary following these guidelines.`
+        },
+        {
+          role: 'user',
+          content: `Please summarize this task: ${task.description}`
+        }
+      ]
+    });
+
+    return response.message.content || 'No summary generated';
+  } catch (error) {
+    console.error('Error generating task summary:', error);
+    throw new Error('Failed to generate task summary');
+  }
+};
+
 export async function generateFriendlyMessage(task: Task, result: string): Promise<string> {
   try {
     let taskTarget = '';
@@ -31,11 +99,22 @@ export async function generateFriendlyMessage(task: Task, result: string): Promi
     }
 
     const response = await ollama.chat({
-      model: 'llama2',
+      model: 'llama3:8b',
       messages: [
         {
           role: 'system',
-          content: 'You are a friendly assistant that generates very short, concise messages (6-10 words max). Keep it simple and direct.'
+          content: `Generate friendly notification:
+Type: ${task.type}
+Target: ${taskTarget}
+Result: ${result}
+
+Guidelines:
+1. Length: 6-10 words
+2. Tone: Friendly, positive, clear
+3. Content: Key info, active voice
+4. Style: Simple, memorable
+
+Generate short, friendly message.`
         },
         {
           role: 'user',
@@ -89,7 +168,7 @@ export async function summarizeLearningContent(
          Facts:`;
 
     const response = await ollama.chat({
-      model: 'llama2',
+      model: 'llama3:8b',
       messages: [
         {
           role: 'system',

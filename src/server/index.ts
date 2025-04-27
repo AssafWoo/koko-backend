@@ -14,8 +14,20 @@ const prisma = new PrismaClient();
 const port = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true
+}));
+
 app.use(express.json());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log('Request headers:', req.headers);
+  console.log('Request body:', req.body);
+  next();
+});
 
 // Routes
 app.use('/api/tasks', taskRoutes);
@@ -30,7 +42,11 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   console.error('Error details:', {
     message: err.message,
     stack: err.stack,
-    name: err.name
+    name: err.name,
+    url: req.url,
+    method: req.method,
+    body: req.body,
+    headers: req.headers
   });
   res.status(500).json({ 
     error: 'Something broke!',
@@ -47,10 +63,13 @@ app.get('/health', (req, res) => {
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log('CORS origin:', process.env.CORS_ORIGIN || 'http://localhost:5173');
 });
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
+  console.log('Shutting down server...');
   await prisma.$disconnect();
   process.exit(0);
 }); 

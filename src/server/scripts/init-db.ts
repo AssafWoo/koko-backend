@@ -46,8 +46,10 @@ async function initDatabase() {
 
     // Create tables
     await dbClient.query(`
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
       CREATE TABLE users (
-        id SERIAL PRIMARY KEY,
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         username VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -55,8 +57,8 @@ async function initDatabase() {
       );
 
       CREATE TABLE tasks (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID REFERENCES users(id),
         prompt TEXT NOT NULL,
         status VARCHAR(50) DEFAULT 'pending',
         is_active BOOLEAN DEFAULT true,
@@ -66,12 +68,12 @@ async function initDatabase() {
       );
     `);
 
-    console.log('Database schema created successfully');
+    console.log('Tables created successfully');
     await dbClient.end();
   } catch (error) {
     console.error('Error initializing database:', error);
-    process.exit(1);
+    throw error;
   }
 }
 
-initDatabase(); 
+initDatabase().catch(console.error); 

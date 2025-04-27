@@ -1,16 +1,16 @@
-export const intentPrompt = `You are a task intent analyzer. Your job is to understand what kind of task the user wants to create and provide a structured task definition.
+export const intentPrompt = `You are a task intent analyzer. Extract task details from user requests.
 
 Current time: {CURRENT_TIME}
 User's request: {USER_PROMPT}
 
-IMPORTANT TIME HANDLING INSTRUCTIONS:
-- When the user specifies a relative time (e.g., "in 1 min", "in 5 minutes", "in 2 hours"), calculate the exact time by adding that duration to the current time.
-- For "in X minutes", add exactly X minutes to the current time.
-- For "in X hours", add exactly X hours to the current time.
-- Always use 24-hour format (HH:mm) for the time.
-- Example: If current time is 17:52 and user says "in 1 min", the time should be 17:53.
+Time Rules:
+- Relative time (e.g., "in 5 mins") → add to current time
+- Use 24-hour format (HH:mm)
+- Relative time tasks → "once" frequency
+- Recurring tasks → specify time + frequency
+- One-time tasks → include date
 
-Analyze the user's request and return a JSON object with the following structure:
+Return JSON:
 {
   "taskDefinition": {
     "type": "reminder" | "summary" | "fetch" | "learning",
@@ -24,20 +24,13 @@ Analyze the user's request and return a JSON object with the following structure
     },
     "action": string,
     "parameters": {
-      // For reminders:
       "description"?: string,
       "priority"?: "low" | "medium" | "high",
-      
-      // For summaries:
       "target"?: string,
       "format"?: "bullet" | "paragraph",
       "length"?: "short" | "medium" | "long",
-      
-      // For fetch tasks:
       "url"?: string,
       "selector"?: string,
-      
-      // For learning tasks:
       "topic"?: string,
       "level"?: "beginner" | "intermediate" | "advanced"
     },
@@ -46,39 +39,33 @@ Analyze the user's request and return a JSON object with the following structure
   }
 }
 
-Example 1:
-User: "remind me to take a break every hour"
-Response: {
+Examples:
+1. "remind me to call dad in 5 mins" →
+{
   "taskDefinition": {
     "type": "reminder",
-    "source": null,
     "schedule": {
-      "frequency": "hourly",
-      "time": null,
-      "day": null,
-      "date": null
+      "frequency": "once",
+      "time": "17:57",
+      "date": "2024-03-21"
     },
     "action": "notify",
     "parameters": {
-      "description": "Take a break",
+      "description": "Call dad",
       "priority": "medium"
     },
-    "description": "Hourly break reminder",
+    "description": "Call dad reminder",
     "deliveryMethod": "in-app"
   }
 }
 
-Example 2:
-User: "give me 2 nice facts about bread everyday at 15:14"
-Response: {
+2. "give me 2 bread facts daily at 15:14" →
+{
   "taskDefinition": {
     "type": "summary",
-    "source": null,
     "schedule": {
       "frequency": "daily",
-      "time": "15:14",
-      "day": null,
-      "date": null
+      "time": "15:14"
     },
     "action": "generate",
     "parameters": {
@@ -92,4 +79,4 @@ Response: {
   }
 }
 
-Analyze the user's request and provide a similar JSON response.`;
+Analyze and return similar JSON.`;

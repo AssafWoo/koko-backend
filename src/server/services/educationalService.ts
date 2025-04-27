@@ -1,5 +1,6 @@
 import { Ollama } from 'ollama';
 import type { LearningSource } from '../types';
+import { LearningParameters } from '../types/index';
 
 const ollama = new Ollama();
 
@@ -24,7 +25,7 @@ export async function generateEducationalContent(
     Make it feel like a personal conversation with the student.`;
 
     const response = await ollama.chat({
-      model: 'llama2',
+      model: 'llama3:8b',
       messages: [
         {
           role: 'system',
@@ -60,7 +61,7 @@ export async function generateInteractiveQuestion(
 ): Promise<string> {
   try {
     const response = await ollama.chat({
-      model: 'llama2',
+      model: 'llama3:8b',
       messages: [
         {
           role: 'system',
@@ -80,4 +81,57 @@ export async function generateInteractiveQuestion(
     console.error('Error generating interactive question:', error);
     throw error;
   }
-} 
+}
+
+export const generateQuiz = async (topic: string, difficulty: 'beginner' | 'intermediate' | 'advanced' = 'beginner'): Promise<string> => {
+  try {
+    const response = await ollama.chat({
+      model: 'llama3:8b',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a helpful teacher creating a quiz about ${topic} for a ${difficulty} student.
+          Create a quiz with 5 multiple-choice questions.
+          Each question should have 4 options (A, B, C, D).
+          Include the correct answer at the end.
+          Make the questions engaging and educational.`
+        },
+        {
+          role: 'user',
+          content: `Please create a ${difficulty} level quiz about ${topic}.`
+        }
+      ]
+    });
+
+    return response.message.content || 'No quiz generated';
+  } catch (error) {
+    console.error('Error generating quiz:', error);
+    throw new Error('Failed to generate quiz');
+  }
+};
+
+export const generateExplanation = async (topic: string, concept: string, difficulty: 'beginner' | 'intermediate' | 'advanced' = 'beginner'): Promise<string> => {
+  try {
+    const response = await ollama.chat({
+      model: 'llama3:8b',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a helpful teacher explaining ${concept} in the context of ${topic} to a ${difficulty} student.
+          Your explanation should be clear, engaging, and include examples.
+          Use analogies and real-world applications where appropriate.
+          Break down complex ideas into simpler parts.`
+        },
+        {
+          role: 'user',
+          content: `Please explain ${concept} in the context of ${topic} at a ${difficulty} level.`
+        }
+      ]
+    });
+
+    return response.message.content || 'No explanation generated';
+  } catch (error) {
+    console.error('Error generating explanation:', error);
+    throw new Error('Failed to generate explanation');
+  }
+}; 
