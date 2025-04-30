@@ -1,36 +1,57 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runTask = exports.deleteTask = exports.updateTaskStatus = exports.getAllTasks = exports.getTask = exports.createTask = void 0;
+exports.runTask = exports.updateTaskStatus = exports.deleteTask = exports.getTask = exports.getAllTasks = exports.createTask = void 0;
 const client_1 = require("@prisma/client");
-const contentGenerator_1 = require("./contentGenerator");
-const timeUtils_1 = require("../utils/timeUtils");
+const contentGenerator_js_1 = require("./contentGenerator.js");
+const timeUtils_js_1 = require("@server/utils/timeUtils.js");
+const crypto_1 = __importDefault(require("crypto"));
 const prisma = new client_1.PrismaClient();
-const createTask = async (taskDefinition, userId) => {
-    // Validate and set default values for schedule
-    const schedule = {
-        frequency: taskDefinition.schedule?.frequency || 'once',
-        time: taskDefinition.schedule?.time || new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-        day: taskDefinition.schedule?.day || null,
-        date: taskDefinition.schedule?.date || (taskDefinition.schedule?.frequency === 'once' ? new Date().toISOString().split('T')[0] : null),
-        interval: taskDefinition.schedule?.interval
-    };
+const createTask = async (taskInput, userId) => {
+    // Get current time in HH:mm format
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    console.log('Processing task with prompt:', taskInput.prompt);
+    console.log('Current time:', currentTime);
+    // Check if the prompt contains relative time and adjust the schedule accordingly
+    const prompt = taskInput.prompt?.toLowerCase() || '';
+    const hasRelativeTime = prompt.includes('in ') && (prompt.includes('min') ||
+        prompt.includes('hour') ||
+        prompt.includes('half an hour'));
+    if (hasRelativeTime) {
+        console.log('Detected relative time in prompt');
+        const calculatedTime = (0, timeUtils_js_1.calculateRelativeTime)(currentTime, prompt);
+        console.log('Calculated time:', calculatedTime);
+        taskInput.schedule = {
+            ...taskInput.schedule,
+            time: calculatedTime.time,
+            date: calculatedTime.date,
+            frequency: 'once'
+        };
+    }
+    // Create the task object
     const task = {
-        id: crypto.randomUUID(),
+        id: crypto_1.default.randomUUID(),
         createdAt: new Date().toISOString(),
-        prompt: '',
-        type: taskDefinition.type,
-        source: taskDefinition.source,
-        schedule,
-        action: taskDefinition.action,
-        parameters: taskDefinition.parameters,
-        previewResult: taskDefinition.description,
-        deliveryMethod: taskDefinition.deliveryMethod || 'in-app',
-        description: taskDefinition.description,
+        updatedAt: new Date().toISOString(),
+        prompt: taskInput.prompt,
+        type: taskInput.type,
+        source: taskInput.source,
+        schedule: taskInput.schedule,
+        action: taskInput.action,
+        parameters: taskInput.parameters,
+        previewResult: taskInput.previewResult,
+        deliveryMethod: taskInput.deliveryMethod || 'in-app',
+        description: taskInput.description || taskInput.previewResult,
         logs: [],
         status: 'pending',
         lastExecution: null,
+        nextExecution: null,
         isActive: true
     };
+    // Save task to database
     await prisma.task.create({
         data: {
             id: task.id,
@@ -43,71 +64,55 @@ const createTask = async (taskDefinition, userId) => {
     return task;
 };
 exports.createTask = createTask;
-const getTask = async (id, userId) => {
-    const dbTask = await prisma.task.findFirst({
-        where: {
-            id,
-            userId
-        }
-    });
-    if (!dbTask)
-        return undefined;
-    return JSON.parse(dbTask.metadata || '{}');
-};
-exports.getTask = getTask;
 const getAllTasks = async (userId) => {
-    const dbTasks = await prisma.task.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' }
+    const tasks = await prisma.task.findMany({
+        where: { userId }
     });
-    return dbTasks.map(dbTask => JSON.parse(dbTask.metadata || '{}'));
+    return tasks.map(task => {
+        if (!task.metadata)
+            throw new Error('Task metadata is missing');
+        return JSON.parse(task.metadata);
+    });
 };
 exports.getAllTasks = getAllTasks;
-const updateTaskStatus = async (id, userId, status, logMessage) => {
-    const dbTask = await prisma.task.findFirst({
-        where: {
-            id,
-            userId
-        }
+const getTask = async (id, userId) => {
+    const task = await prisma.task.findFirst({
+        where: { id, userId }
     });
-    if (!dbTask)
+    if (!task || !task.metadata)
         return undefined;
-    const task = JSON.parse(dbTask.metadata || '{}');
-    task.status = status;
-    task.lastExecution = new Date().toISOString();
-    if (logMessage) {
-        task.logs.push({
-            timestamp: new Date().toISOString(),
-            message: logMessage
-        });
-    }
-    await prisma.task.update({
-        where: { id },
-        data: { metadata: JSON.stringify(task) }
-    });
-    return task;
+    return JSON.parse(task.metadata);
 };
-exports.updateTaskStatus = updateTaskStatus;
+exports.getTask = getTask;
 const deleteTask = async (id, userId) => {
-    try {
-        const task = await prisma.task.findFirst({
-            where: {
-                id,
-                userId
-            }
-        });
-        if (!task)
-            return false;
-        await prisma.task.delete({
-            where: { id }
-        });
-        return true;
-    }
-    catch (error) {
+    const task = await prisma.task.findFirst({
+        where: { id, userId }
+    });
+    if (!task)
         return false;
-    }
+    await prisma.task.delete({
+        where: { id }
+    });
+    return true;
 };
 exports.deleteTask = deleteTask;
+const updateTaskStatus = async (id, userId, status, previewResult) => {
+    const task = await (0, exports.getTask)(id, userId);
+    if (!task)
+        return;
+    const updatedTask = {
+        ...task,
+        status,
+        previewResult: previewResult || task.previewResult
+    };
+    await prisma.task.update({
+        where: { id },
+        data: {
+            metadata: JSON.stringify(updatedTask)
+        }
+    });
+};
+exports.updateTaskStatus = updateTaskStatus;
 const runTask = async (id, userId) => {
     const task = await (0, exports.getTask)(id, userId);
     if (!task)
@@ -117,7 +122,7 @@ const runTask = async (id, userId) => {
         let result = '';
         switch (task.type) {
             case 'summary':
-                result = await (0, contentGenerator_1.generateContent)('facts', task.parameters);
+                result = await (0, contentGenerator_js_1.generateContent)('facts', task.parameters);
                 break;
             case 'reminder':
                 result = `Reminder: ${task.description}`;
@@ -126,16 +131,22 @@ const runTask = async (id, userId) => {
                 result = `Fetched content from: ${task.parameters.target}`;
                 break;
             case 'learning':
-                result = `Learning content prepared for: ${task.parameters.topic}`;
+                result = await (0, contentGenerator_js_1.generateContent)('learning', task.parameters);
                 break;
         }
         task.previewResult = result;
         // For recurring tasks, set status to 'recurring' instead of 'completed'
         const isRecurring = task.schedule?.frequency && task.schedule.frequency !== 'once';
-        const nextExecution = isRecurring ? (0, timeUtils_1.calculateNextExecutionTime)(task.schedule, new Date()) : null;
+        const nextExecution = isRecurring && task.schedule ? (0, timeUtils_js_1.calculateNextExecutionTime)({
+            frequency: task.schedule.frequency === 'continuous' ? 'hourly' : task.schedule.frequency,
+            time: task.schedule.time,
+            day: task.schedule.day,
+            date: task.schedule.date,
+            interval: task.schedule.interval
+        }, new Date()) : null;
         await (0, exports.updateTaskStatus)(id, userId, isRecurring ? 'recurring' : 'completed', result);
         // Update next execution time for recurring tasks
-        if (isRecurring) {
+        if (isRecurring && task.schedule) {
             await prisma.task.update({
                 where: { id },
                 data: {

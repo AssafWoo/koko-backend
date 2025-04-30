@@ -1,9 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateExplanation = exports.generateQuiz = void 0;
 exports.generateEducationalContent = generateEducationalContent;
 exports.generateInteractiveQuestion = generateInteractiveQuestion;
-const ollama_1 = require("ollama");
-const ollama = new ollama_1.Ollama();
+const llmTaskRouter_1 = require("./llmTaskRouter");
+const llmRouter = llmTaskRouter_1.LLMTaskRouter.getInstance();
 async function generateEducationalContent(topic, format, difficulty, sources) {
     try {
         // Create a teacher-like prompt
@@ -18,20 +19,7 @@ async function generateEducationalContent(topic, format, difficulty, sources) {
     5. A thought-provoking question to encourage further learning
 
     Make it feel like a personal conversation with the student.`;
-        const response = await ollama.chat({
-            model: 'llama2',
-            messages: [
-                {
-                    role: 'system',
-                    content: teacherPrompt
-                },
-                {
-                    role: 'user',
-                    content: `Please teach me about ${topic} in a ${difficulty} level.`
-                }
-            ]
-        });
-        let content = response.message.content;
+        let content = await llmRouter.processTask({ type: 'learning' }, `Please teach me about ${topic} in a ${difficulty} level.`);
         // Add source links if available
         if (sources.length > 0) {
             content += '\n\n📚 Want to learn more? Check out these resources:\n';
@@ -48,25 +36,30 @@ async function generateEducationalContent(topic, format, difficulty, sources) {
 }
 async function generateInteractiveQuestion(topic, difficulty) {
     try {
-        const response = await ollama.chat({
-            model: 'llama2',
-            messages: [
-                {
-                    role: 'system',
-                    content: `You are a teacher creating an interactive question about ${topic} for a ${difficulty} student.
-          The question should be thought-provoking but not too difficult.
-          Include a hint if the student gets stuck.`
-                },
-                {
-                    role: 'user',
-                    content: `Generate an interactive question about ${topic} for a ${difficulty} student.`
-                }
-            ]
-        });
-        return response.message.content;
+        return await llmRouter.processTask({ type: 'learning' }, `Generate an interactive question about ${topic} for a ${difficulty} student.`);
     }
     catch (error) {
         console.error('Error generating interactive question:', error);
         throw error;
     }
 }
+const generateQuiz = async (topic, difficulty = 'beginner') => {
+    try {
+        return await llmRouter.processTask({ type: 'learning' }, `Please create a ${difficulty} level quiz about ${topic}.`);
+    }
+    catch (error) {
+        console.error('Error generating quiz:', error);
+        throw new Error('Failed to generate quiz');
+    }
+};
+exports.generateQuiz = generateQuiz;
+const generateExplanation = async (topic, concept, difficulty = 'beginner') => {
+    try {
+        return await llmRouter.processTask({ type: 'learning' }, `Please explain ${concept} in the context of ${topic} at a ${difficulty} level.`);
+    }
+    catch (error) {
+        console.error('Error generating explanation:', error);
+        throw new Error('Failed to generate explanation');
+    }
+};
+exports.generateExplanation = generateExplanation;

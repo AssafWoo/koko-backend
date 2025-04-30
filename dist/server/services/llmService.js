@@ -1,9 +1,78 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateTaskSummary = exports.generateTaskContent = void 0;
 exports.generateFriendlyMessage = generateFriendlyMessage;
 exports.summarizeLearningContent = summarizeLearningContent;
 const ollama_1 = require("ollama");
 const ollama = new ollama_1.Ollama();
+const generateTaskContent = async (task) => {
+    try {
+        const response = await ollama.chat({
+            model: 'llama3:8b',
+            messages: [
+                {
+                    role: 'system',
+                    content: `Generate high-quality content for task:
+Type: ${task.type}
+Description: ${task.description}
+Parameters: ${JSON.stringify(task.parameters)}
+
+Guidelines:
+1. Relevance: Match task purpose
+2. Quality: Clear language, examples, consistent tone
+3. Structure: Logical flow, proper formatting
+4. Engagement: Interesting, active voice, actionable
+
+Generate content following these guidelines.`
+                },
+                {
+                    role: 'user',
+                    content: `Please generate content for this task: ${task.description}`
+                }
+            ]
+        });
+        return response.message.content || 'No content generated';
+    }
+    catch (error) {
+        console.error('Error generating task content:', error);
+        throw new Error('Failed to generate task content');
+    }
+};
+exports.generateTaskContent = generateTaskContent;
+const generateTaskSummary = async (task) => {
+    try {
+        const response = await ollama.chat({
+            model: 'llama3:8b',
+            messages: [
+                {
+                    role: 'system',
+                    content: `Create concise summary for task:
+Type: ${task.type}
+Description: ${task.description}
+Parameters: ${JSON.stringify(task.parameters)}
+
+Guidelines:
+1. Key Points: Main ideas, critical info
+2. Clarity: Simple language, explain complex
+3. Structure: Logical flow, transitions
+4. Length: Concise, essential info only
+
+Create summary following these guidelines.`
+                },
+                {
+                    role: 'user',
+                    content: `Please summarize this task: ${task.description}`
+                }
+            ]
+        });
+        return response.message.content || 'No summary generated';
+    }
+    catch (error) {
+        console.error('Error generating task summary:', error);
+        throw new Error('Failed to generate task summary');
+    }
+};
+exports.generateTaskSummary = generateTaskSummary;
 async function generateFriendlyMessage(task, result) {
     try {
         let taskTarget = '';
@@ -24,11 +93,22 @@ async function generateFriendlyMessage(task, result) {
                 taskTarget = task.action;
         }
         const response = await ollama.chat({
-            model: 'llama2',
+            model: 'llama3:8b',
             messages: [
                 {
                     role: 'system',
-                    content: 'You are a friendly assistant that generates very short, concise messages (6-10 words max). Keep it simple and direct.'
+                    content: `Generate friendly notification:
+Type: ${task.type}
+Target: ${taskTarget}
+Result: ${result}
+
+Guidelines:
+1. Length: 6-10 words
+2. Tone: Friendly, positive, clear
+3. Content: Key info, active voice
+4. Style: Simple, memorable
+
+Generate short, friendly message.`
                 },
                 {
                     role: 'user',
@@ -73,7 +153,7 @@ async function summarizeLearningContent(topic, sources, format = 'summary') {
          
          Facts:`;
         const response = await ollama.chat({
-            model: 'llama2',
+            model: 'llama3:8b',
             messages: [
                 {
                     role: 'system',

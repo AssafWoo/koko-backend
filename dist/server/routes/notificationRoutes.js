@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendNotificationToClients = void 0;
 const express_1 = __importDefault(require("express"));
-const auth_1 = require("../middleware/auth");
+const auth_1 = require("@server/middleware/auth");
 const router = express_1.default.Router();
 // Store connected clients
 const clients = new Set();

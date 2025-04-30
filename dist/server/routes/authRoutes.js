@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const auth_1 = __importDefault(require("../config/auth"));
+const auth_1 = __importDefault(require("@server/config/auth"));
 const router = (0, express_1.Router)();
 // Google OAuth login route
 router.get('/google', auth_1.default.authenticate('google', { scope: ['profile', 'email'] }));

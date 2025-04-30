@@ -18,7 +18,15 @@ const generateTokens = (userId, email) => {
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+                id: true,
+                email: true,
+                password: true,
+                username: true
+            }
+        });
         if (!user) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
@@ -27,7 +35,6 @@ const login = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
         const { accessToken, refreshToken } = generateTokens(user.id, user.email);
-        // Store refresh token in database
         await prisma.refreshToken.create({
             data: {
                 token: refreshToken,
@@ -45,8 +52,11 @@ const login = async (req, res) => {
 exports.login = login;
 const register = async (req, res) => {
     try {
-        const { email, password, name } = req.body;
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const { email, password, username, name } = req.body;
+        const existingUser = await prisma.user.findUnique({
+            where: { email },
+            select: { id: true }
+        });
         if (existingUser) {
             return res.status(400).json({ message: 'Email already registered' });
         }
@@ -55,11 +65,16 @@ const register = async (req, res) => {
             data: {
                 email,
                 password: hashedPassword,
-                name,
+                username,
+                name
             },
+            select: {
+                id: true,
+                email: true,
+                username: true
+            }
         });
         const { accessToken, refreshToken } = generateTokens(user.id, user.email);
-        // Store refresh token in database
         await prisma.refreshToken.create({
             data: {
                 token: refreshToken,
@@ -80,13 +95,19 @@ const refreshToken = async (req, res) => {
         const { refreshToken } = req.body;
         const storedToken = await prisma.refreshToken.findUnique({
             where: { token: refreshToken },
-            include: { user: true },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true
+                    }
+                }
+            },
         });
         if (!storedToken || storedToken.expiresAt < new Date()) {
             return res.status(403).json({ message: 'Invalid refresh token' });
         }
         const { accessToken, refreshToken: newRefreshToken } = generateTokens(storedToken.user.id, storedToken.user.email);
-        // Update refresh token in database
         await prisma.refreshToken.update({
             where: { id: storedToken.id },
             data: {

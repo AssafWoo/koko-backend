@@ -1,98 +1,158 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.intentPrompt = void 0;
-exports.intentPrompt = `You are a task intent analyzer. Your job is to understand what kind of task the user wants to create and provide a structured task definition.
+exports.intentPrompt = `You are a task intent analyzer. Extract task details from user requests.
 
 Current time: {CURRENT_TIME}
 User's request: {USER_PROMPT}
 
-IMPORTANT TIME HANDLING INSTRUCTIONS:
-- When the user specifies a relative time (e.g., "in 1 min", "in 5 minutes", "in 2 hours"), calculate the exact time by adding that duration to the current time.
-- For "in X minutes", add exactly X minutes to the current time.
-- For "in X hours", add exactly X hours to the current time.
-- Always use 24-hour format (HH:mm) for the time.
-- Example: If current time is 17:52 and user says "in 1 min", the time should be 17:53.
+Time Rules:
+- Relative time (e.g., "in 5 mins", "in half an hour") → add to current time
+- Time-of-day keywords:
+  * "night" → 23:00
+  * "evening" → 19:00
+  * "afternoon" → 16:00
+  * "noon" → 12:00
+  * "morning" → 08:00
+  * "middle of the night" → 03:00
+- Use 24-hour format (HH:mm)
 
-Analyze the user's request and return a JSON object with the following structure:
+Frequency Rules:
+- "every day" or "daily" → frequency: "daily"
+- "every week" or "weekly" → frequency: "weekly"
+- "every month" or "monthly" → frequency: "monthly"
+- "every hour" or "hourly" → frequency: "hourly"
+- "every X minutes" → frequency: "every_x_minutes", interval: X
+- "every [day of week]" (e.g., "every monday") → frequency: "weekly", day: [day]
+- "every [time of day]" (e.g., "every morning") → frequency: "daily", time: [time]
+- "in X mins/hours" or "in half an hour" → frequency: "once"
+- "at [time]" without frequency → frequency: "once"
+
+IMPORTANT: Return ONLY the JSON object, no additional text or explanation.
+
+Return JSON:
 {
   "taskDefinition": {
     "type": "reminder" | "summary" | "fetch" | "learning",
     "source": string | null,
     "schedule": {
       "frequency": "once" | "daily" | "weekly" | "monthly" | "hourly" | "every_x_minutes",
-      "interval"?: number,
+      "interval": number | null,
       "time": string | null,
       "day": string | null,
       "date": string | null
     },
     "action": string,
     "parameters": {
-      // For reminders:
-      "description"?: string,
-      "priority"?: "low" | "medium" | "high",
-      
-      // For summaries:
-      "target"?: string,
-      "format"?: "bullet" | "paragraph",
-      "length"?: "short" | "medium" | "long",
-      
-      // For fetch tasks:
-      "url"?: string,
-      "selector"?: string,
-      
-      // For learning tasks:
-      "topic"?: string,
-      "level"?: "beginner" | "intermediate" | "advanced"
+      "description": string,
+      "priority": "low" | "medium" | "high" | null,
+      "target": string | null,
+      "format": "bullet" | "paragraph" | null,
+      "length": "short" | "medium" | "long" | null,
+      "url": string | null,
+      "selector": string | null,
+      "topic": string | null,
+      "level": "beginner" | "intermediate" | "advanced" | null
     },
     "description": string,
     "deliveryMethod": "in-app" | "email" | "slack"
   }
 }
 
-Example 1:
-User: "remind me to take a break every hour"
-Response: {
+Examples:
+1. "remind me to call dad in half an hour" →
+{
   "taskDefinition": {
     "type": "reminder",
     "source": null,
     "schedule": {
-      "frequency": "hourly",
-      "time": null,
+      "frequency": "once",
+      "interval": null,
+      "time": "17:01",
+      "day": null,
+      "date": "2024-03-21"
+    },
+    "action": "notify",
+    "parameters": {
+      "description": "Call dad",
+      "priority": "medium",
+      "target": null,
+      "format": null,
+      "length": null,
+      "url": null,
+      "selector": null,
+      "topic": null,
+      "level": null
+    },
+    "description": "Call dad reminder",
+    "deliveryMethod": "in-app"
+  }
+}
+
+2. "remind me to drink water every morning" →
+{
+  "taskDefinition": {
+    "type": "reminder",
+    "source": null,
+    "schedule": {
+      "frequency": "daily",
+      "interval": null,
+      "time": "08:00",
       "day": null,
       "date": null
     },
     "action": "notify",
     "parameters": {
-      "description": "Take a break",
+      "description": "Drink water",
+      "priority": "medium",
+      "target": null,
+      "format": null,
+      "length": null,
+      "url": null,
+      "selector": null,
+      "topic": null,
+      "level": null
+    },
+    "description": "Daily water reminder",
+    "deliveryMethod": "in-app"
+  }
+}
+
+3. "remind me to exercise every monday at 9am" →
+{
+  "taskDefinition": {
+    "type": "reminder",
+    "schedule": {
+      "frequency": "weekly",
+      "time": "09:00",
+      "day": "monday"
+    },
+    "action": "notify",
+    "parameters": {
+      "description": "Exercise",
       "priority": "medium"
     },
-    "description": "Hourly break reminder",
+    "description": "Weekly exercise reminder",
     "deliveryMethod": "in-app"
   }
 }
 
-Example 2:
-User: "give me 2 nice facts about bread everyday at 15:14"
-Response: {
+4. "check my emails every 30 minutes" →
+{
   "taskDefinition": {
-    "type": "summary",
-    "source": null,
+    "type": "fetch",
     "schedule": {
-      "frequency": "daily",
-      "time": "15:14",
-      "day": null,
-      "date": null
+      "frequency": "every_x_minutes",
+      "interval": 30,
+      "time": null
     },
-    "action": "generate",
+    "action": "fetch",
     "parameters": {
-      "target": "bread facts",
-      "format": "bullet",
-      "length": "short",
-      "count": 2
+      "target": "emails"
     },
-    "description": "Daily bread facts",
+    "description": "Check emails every 30 minutes",
     "deliveryMethod": "in-app"
   }
 }
 
-Analyze the user's request and provide a similar JSON response.`;
+Return ONLY the JSON object, no additional text.`;

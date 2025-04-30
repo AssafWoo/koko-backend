@@ -34,7 +34,7 @@ router.post('/login', (async (req, res, next) => {
         }
         // Generate JWT token
         const token = jsonwebtoken_1.default.sign({
-            userId: user.id,
+            userId: user.id.toString(),
             username: user.username
         }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '24h' });
         console.log('Generated token for user:', { userId: user.id, username: user.username });

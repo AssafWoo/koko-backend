@@ -2,15 +2,15 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.triggerScheduler = exports.startTaskScheduler = void 0;
 const client_1 = require("@prisma/client");
-const notificationRoutes_js_1 = require("../routes/notificationRoutes.js");
+const notificationRoutes_js_1 = require("@server/routes/notificationRoutes.js");
 const notificationService_js_1 = require("./notificationService.js");
 const contentGenerator_js_1 = require("./contentGenerator.js");
-const timeUtils_js_1 = require("../utils/timeUtils.js");
+const timeUtils_js_1 = require("@server/utils/timeUtils.js");
 const date_fns_1 = require("date-fns");
 const prisma = new client_1.PrismaClient();
-const checkInterval = 5000; // Check every 10 seconds for more precise timing
+const checkInterval = 10000; // Check every 10 seconds for more precise timing
 const maxConcurrentTasks = 10; // Maximum number of tasks to process concurrently
-const executionWindow = 10; // 30-second window for task execution
+const executionWindow = 30; // 30-second window for task execution
 const taskQueue = [];
 const processingLocks = new Set();
 const metadataCache = new Map();
@@ -32,11 +32,11 @@ const calculateTaskPriority = (task, taskObj) => {
         case 'reminder':
             priority += 100;
             break;
+        case 'learning':
+            priority += 150; // Increased priority for learning tasks
+            break;
         case 'summary':
             priority += 50;
-            break;
-        case 'learning':
-            priority += 30;
             break;
         case 'fetch':
             priority += 20;
@@ -183,8 +183,18 @@ const processTaskQueue = async () => {
     const tasksToProcess = taskQueue.filter(item => {
         const secondsUntilWindow = (0, date_fns_1.differenceInSeconds)(item.executionWindow.start, now);
         const secondsAfterWindow = (0, date_fns_1.differenceInSeconds)(now, item.executionWindow.end);
-        return secondsUntilWindow <= 0 && secondsAfterWindow <= 0;
+        const isInWindow = secondsUntilWindow <= 0 && secondsAfterWindow <= 0;
+        console.log(`Task ${item.task.id} window check:`, {
+            secondsUntilWindow,
+            secondsAfterWindow,
+            isInWindow,
+            start: item.executionWindow.start.toISOString(),
+            end: item.executionWindow.end.toISOString(),
+            current: now.toISOString()
+        });
+        return isInWindow;
     }).slice(0, maxConcurrentTasks);
+    console.log(`Processing ${tasksToProcess.length} tasks from queue`);
     // Remove processed tasks from queue
     taskQueue.splice(0, tasksToProcess.length);
     await Promise.all(tasksToProcess.map(({ task, taskObj }) => processTaskDue(task, taskObj, now)));
@@ -192,6 +202,7 @@ const processTaskQueue = async () => {
 // Main scheduler function
 const runScheduler = async () => {
     try {
+        console.log('Running scheduler at:', new Date().toISOString());
         const tasks = await prisma.task.findMany({
             where: {
                 metadata: {
@@ -200,8 +211,10 @@ const runScheduler = async () => {
             }
         });
         if (tasks.length === 0) {
+            console.log('No pending tasks found');
             return;
         }
+        console.log(`Found ${tasks.length} pending tasks`);
         const now = new Date();
         const currentTime = (0, timeUtils_js_1.formatTime)(now);
         // Clear the queue and repopulate with due tasks
@@ -214,10 +227,18 @@ const runScheduler = async () => {
                     metadataCache.set(task.id, metadata);
                 }
                 if (metadata.status !== 'pending') {
+                    console.log(`Task ${task.id} is not pending, status: ${metadata.status}`);
                     continue;
                 }
                 const schedule = metadata.schedule;
+                console.log(`Checking task ${task.id}:`, {
+                    scheduledTime: schedule?.time,
+                    currentTime,
+                    frequency: schedule?.frequency,
+                    date: schedule?.date
+                });
                 if (schedule?.time && (0, timeUtils_js_1.isTaskDue)(schedule.time, currentTime, schedule.frequency, metadata.lastExecution, schedule.interval, schedule.date)) {
+                    console.log(`Task ${task.id} is due, adding to queue`);
                     const taskObj = {
                         id: task.id,
                         createdAt: task.createdAt.toISOString(),
@@ -240,7 +261,7 @@ const runScheduler = async () => {
                         logs: metadata.logs || [],
                         status: metadata.status,
                         lastExecution: metadata.lastExecution || null,
-                        nextExecution: (0, timeUtils_js_1.calculateNextExecutionTime)(metadata.schedule, new Date()),
+                        nextExecution: (0, timeUtils_js_1.calculateNextExecutionTime)(metadata.schedule, new Date()) || null,
                         isActive: true
                     };
                     const scheduledTime = new Date(now);
@@ -249,6 +270,11 @@ const runScheduler = async () => {
                     // Calculate execution window
                     const executionWindowStart = (0, date_fns_1.addSeconds)(scheduledTime, -executionWindow);
                     const executionWindowEnd = (0, date_fns_1.addSeconds)(scheduledTime, executionWindow);
+                    console.log(`Task ${task.id} execution window:`, {
+                        start: executionWindowStart.toISOString(),
+                        end: executionWindowEnd.toISOString(),
+                        current: now.toISOString()
+                    });
                     taskQueue.push({
                         task,
                         taskObj,
@@ -260,13 +286,18 @@ const runScheduler = async () => {
                         }
                     });
                 }
+                else {
+                    console.log(`Task ${task.id} is not due yet`);
+                }
             }
             catch (error) {
                 console.error(`Error processing task ${task.id}:`, error);
             }
         }
+        console.log(`Queue size before processing: ${taskQueue.length}`);
         // Process the task queue
         await processTaskQueue();
+        console.log('Scheduler run completed');
     }
     catch (error) {
         console.error('Error in task scheduler main loop:', error);

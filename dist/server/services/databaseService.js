@@ -9,7 +9,7 @@ exports.writeTasks = writeTasks;
 exports.addTaskLog = addTaskLog;
 exports.updateTaskStatus = updateTaskStatus;
 exports.getIntervalInMilliseconds = getIntervalInMilliseconds;
-const database_1 = __importDefault(require("../config/database"));
+const database_1 = __importDefault(require("@server/config/database"));
 // Initialize the database with required tables
 async function initializeDatabase() {
     const client = await database_1.default.connect();
