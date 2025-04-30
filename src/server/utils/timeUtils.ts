@@ -102,8 +102,8 @@ export const calculateNextExecutionTime = (
     interval?: number;
   },
   currentTime: Date
-): string => {
-  if (!schedule) return null;
+): string | undefined => {
+  if (!schedule) return undefined;
   
   const nextTime = new Date(currentTime);
   const [hours, minutes] = (schedule.time || '00:00').split(':').map(Number);

@@ -324,7 +324,7 @@ const runScheduler = async () => {
             logs: metadata.logs || [],
             status: metadata.status,
             lastExecution: metadata.lastExecution || null,
-            nextExecution: calculateNextExecutionTime(metadata.schedule, new Date()),
+            nextExecution: calculateNextExecutionTime(metadata.schedule, new Date()) || null,
             isActive: true
           };
 

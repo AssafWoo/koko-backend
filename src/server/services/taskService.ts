@@ -1,4 +1,4 @@
-import { Task } from '../types/index';
+import { Task, Schedule } from '../types/index';
 import { PrismaClient } from '@prisma/client';
 import { generateContent } from './contentGenerator';
 import { calculateNextExecutionTime } from '../utils/timeUtils';
@@ -14,21 +14,22 @@ export const createTask = async (taskDefinition: {
   parameters: Task['parameters'];
   description: string;
   deliveryMethod?: Task['deliveryMethod'];
-}, userId: number): Promise<Task> => {
+}, userId: string): Promise<Task> => {
   const now = new Date();
   const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   const currentDate = now.toISOString().split('T')[0];
 
   // Normalize schedule
-  const schedule = normalizeSchedule(taskDefinition.schedule, currentTime, currentDate, '');
+  const schedule = taskDefinition.schedule ? normalizeSchedule(taskDefinition.schedule as Partial<Schedule>, currentTime, currentDate, '') : null;
 
   const task: Task = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     prompt: '',
     type: taskDefinition.type,
     source: taskDefinition.source,
-    schedule,
+    schedule: schedule as Task['schedule'],
     action: taskDefinition.action,
     parameters: taskDefinition.parameters,
     previewResult: taskDefinition.description,
@@ -37,6 +38,7 @@ export const createTask = async (taskDefinition: {
     logs: [],
     status: 'pending',
     lastExecution: null,
+    nextExecution: null,
     isActive: true
   };
 
@@ -53,23 +55,27 @@ export const createTask = async (taskDefinition: {
   return task;
 };
 
-export const getAllTasks = async (userId: number): Promise<Task[]> => {
+export const getAllTasks = async (userId: string): Promise<Task[]> => {
   const tasks = await prisma.task.findMany({
     where: { userId }
   });
 
-  return tasks.map(task => JSON.parse(task.metadata));
+  return tasks.map(task => {
+    if (!task.metadata) throw new Error('Task metadata is missing');
+    return JSON.parse(task.metadata);
+  });
 };
 
-export const getTask = async (id: string, userId: number): Promise<Task | undefined> => {
+export const getTask = async (id: string, userId: string): Promise<Task | undefined> => {
   const task = await prisma.task.findFirst({
     where: { id, userId }
   });
 
-  return task ? JSON.parse(task.metadata) : undefined;
+  if (!task || !task.metadata) return undefined;
+  return JSON.parse(task.metadata);
 };
 
-export const deleteTask = async (id: string, userId: number): Promise<boolean> => {
+export const deleteTask = async (id: string, userId: string): Promise<boolean> => {
   const task = await prisma.task.findFirst({
     where: { id, userId }
   });
@@ -85,7 +91,7 @@ export const deleteTask = async (id: string, userId: number): Promise<boolean> =
 
 export const updateTaskStatus = async (
   id: string,
-  userId: number,
+  userId: string,
   status: Task['status'],
   previewResult?: string
 ): Promise<void> => {
@@ -106,7 +112,7 @@ export const updateTaskStatus = async (
   });
 };
 
-export const runTask = async (id: string, userId: number): Promise<Task | undefined> => {
+export const runTask = async (id: string, userId: string): Promise<Task | undefined> => {
   const task = await getTask(id, userId);
   if (!task) return undefined;
 
@@ -137,7 +143,13 @@ export const runTask = async (id: string, userId: number): Promise<Task | undefi
     
     // For recurring tasks, set status to 'recurring' instead of 'completed'
     const isRecurring = task.schedule?.frequency && task.schedule.frequency !== 'once';
-    const nextExecution = isRecurring ? calculateNextExecutionTime(task.schedule, new Date()) : null;
+    const nextExecution = isRecurring && task.schedule ? calculateNextExecutionTime({
+      frequency: task.schedule.frequency === 'continuous' ? 'hourly' : task.schedule.frequency,
+      time: task.schedule.time,
+      day: task.schedule.day,
+      date: task.schedule.date,
+      interval: task.schedule.interval
+    }, new Date()) : null;
     
     await updateTaskStatus(
       id, 
@@ -147,7 +159,7 @@ export const runTask = async (id: string, userId: number): Promise<Task | undefi
     );
     
     // Update next execution time for recurring tasks
-    if (isRecurring) {
+    if (isRecurring && task.schedule) {
       await prisma.task.update({
         where: { id },
         data: { 
