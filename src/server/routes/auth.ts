@@ -37,7 +37,7 @@ router.post('/login', (async (req: Request, res: Response, next: NextFunction): 
     // Generate JWT token
     const token = jwt.sign(
       { 
-        userId: user.id,
+        userId: user.id.toString(),
         username: user.username
       },
       process.env.JWT_SECRET || 'your-secret-key',
@@ -63,11 +63,11 @@ router.post('/verify', (async (req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: number; username: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as { userId: string; username: string };
     
     // Verify user still exists
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId.toString() }
+      where: { id: decoded.userId }
     });
 
     if (!user) {

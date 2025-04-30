@@ -1,9 +1,9 @@
 export interface Schedule {
-  frequency: 'daily' | 'weekly' | 'monthly' | 'once' | 'hourly' | 'every_x_minutes';
-  interval?: number | null;  // Only for "every_x_minutes" (e.g., 5 for every 5 minutes)
-  day?: string;  // For weekly: 'Monday', 'Tuesday', etc.
-  time?: string; // Format: 'HH:mm'
-  date?: string; // For once: 'YYYY-MM-DD'
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous';
+  interval?: number;
+  time: string | null;
+  day: string | null;
+  date: string | null;
 }
 
 export interface LearningSource {
@@ -67,13 +67,7 @@ export interface Task {
   prompt: string;
   type: TaskType;
   source: string | null;
-  schedule: {
-    frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous';
-    interval?: number;
-    time: string | null;
-    day: string | null;
-    date: string | null;
-  } | null;
+  schedule: Schedule | null;
   action: string;
   parameters: ReminderParameters | SummaryParameters | FetchParameters | LearningParameters;
   previewResult: string;

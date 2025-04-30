@@ -134,4 +134,60 @@ export const calculateNextExecutionTime = (
   }
   
   return nextTime.toISOString();
+};
+
+export interface RelativeTimeResult {
+  time: string;
+  date: string;
+}
+
+export const calculateRelativeTime = (currentTime: string, prompt: string): RelativeTimeResult => {
+  const now = new Date();
+  const [hours, minutes] = currentTime.split(':').map(Number);
+  now.setHours(hours);
+  now.setMinutes(minutes);
+  now.setSeconds(0);
+  now.setMilliseconds(0);
+
+  console.log('Starting time calculation with:', { currentTime, prompt });
+
+  // Extract time value and unit from prompt
+  const timeMatch = prompt.toLowerCase().match(/(\d+(?:\.\d+)?)\s*(min(?:ute)?s?|hour(?:s)?)/);
+  if (!timeMatch) {
+    // Try alternative formats like "half an hour"
+    const halfHourMatch = prompt.toLowerCase().match(/half\s+an?\s+hour/);
+    if (halfHourMatch) {
+      console.log('Matched half hour format');
+      now.setMinutes(now.getMinutes() + 30);
+    } else {
+      return {
+        time: currentTime,
+        date: formatDate(now)
+      };
+    }
+  } else {
+    const amount = parseFloat(timeMatch[1]);
+    const unit = timeMatch[2].toLowerCase();
+
+    if (unit.startsWith('min')) {
+      now.setMinutes(now.getMinutes() + amount);
+    } else if (unit.startsWith('hour')) {
+      now.setHours(now.getHours() + amount);
+    }
+  }
+
+  // If the calculated time is earlier than current time, add a day
+  const currentDate = new Date();
+  if (now < currentDate) {
+    now.setDate(now.getDate() + 1);
+  }
+
+  // Format the time in 24-hour format
+  const result: RelativeTimeResult = {
+    time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+    date: formatDate(now)
+  };
+
+  console.log('Calculated relative time:', result);
+  return result;
 }; 

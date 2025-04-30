@@ -7,7 +7,8 @@ import { RequestHandler } from 'express';
 import { Task } from '@server/types';
 import { createTask, getAllTasks, deleteTask, runTask } from '@server/services/taskService';
 import { extractTaskIntent } from '@server/utils/llmUtils';
-import { normalizeSchedule, calculateRelativeTime } from '@server/utils/scheduleUtils';
+import { normalizeSchedule } from '@server/utils/scheduleUtils';
+import { calculateRelativeTime, RelativeTimeResult } from '@server/utils/timeUtils';
 import { LLMTaskRouter } from '@server/services/llmTaskRouter';
 import crypto from 'crypto';
 
@@ -69,48 +70,21 @@ router.get('/', authenticateToken, (async (req: Request, res: Response, next: Ne
 // Create a new task
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    console.log('POST /tasks - Request user:', req.user);
-    console.log('POST /tasks - Request body:', req.body);
-    
-    const userId = req.user?.id?.toString();
-    if (!userId) {
-      console.log('Invalid user ID in request');
-      res.status(401).json({ message: 'Invalid user ID' });
-      return;
-    }
-
     const { prompt } = req.body;
-    if (!prompt) {
-      console.log('No prompt provided');
-      res.status(400).json({ message: 'Prompt is required' });
-      return;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     // Get current time in HH:mm format
     const now = new Date();
-    const currentHours = now.getHours().toString().padStart(2, '0');
-    const currentMinutes = now.getMinutes().toString().padStart(2, '0');
-    const currentTime = `${currentHours}:${currentMinutes}`;
-    console.log('Current time:', currentTime);
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    // Use Mistral for intent analysis
-    console.log('Analyzing intent with Mistral for prompt:', prompt);
-    const intentResponse = await llmRouter.processTask(
-      { type: 'intent' } as any,
-      intentPrompt.replace('{USER_PROMPT}', prompt).replace('{CURRENT_TIME}', currentTime)
-    );
+    // Extract task intent using LLM
+    const parsedIntent = await extractTaskIntent(prompt, currentTime);
 
-    console.log('Mistral response:', intentResponse);
-    let parsedIntent;
-    try {
-      parsedIntent = JSON.parse(intentResponse);
-    } catch (error) {
-      console.error('Error parsing intent response:', error);
-      res.status(500).json({ message: 'Failed to parse task intent' });
-      return;
-    }
-
-    // Check for time-of-day keywords in the prompt
+    // Check for time-of-day keywords first
     const timeOfDayTime = convertTimeOfDayToTime(prompt);
     if (timeOfDayTime) {
       console.log('Converting time-of-day to specific time:', {
@@ -121,10 +95,17 @@ router.post('/', authenticateToken, async (req, res, next) => {
     }
     // If no time-of-day match, check for relative time
     else if (prompt.toLowerCase().includes('in ') && 
-            (prompt.toLowerCase().includes('min') || prompt.toLowerCase().includes('hour'))) {
+            (prompt.toLowerCase().includes('min') || 
+             prompt.toLowerCase().includes('hour') ||
+             prompt.toLowerCase().includes('half an hour'))) {
       // Use the utility function for relative time
-      const calculatedTime = calculateRelativeTime(currentTime, prompt);
-      parsedIntent.taskDefinition.schedule.time = calculatedTime;
+      const calculatedTime: RelativeTimeResult = calculateRelativeTime(currentTime, prompt);
+      parsedIntent.taskDefinition.schedule = {
+        ...parsedIntent.taskDefinition.schedule,
+        time: calculatedTime.time,
+        date: calculatedTime.date,
+        frequency: 'once'
+      };
       console.log('Adjusted time for relative schedule:', {
         originalTime: currentTime,
         calculatedTime,
@@ -132,71 +113,20 @@ router.post('/', authenticateToken, async (req, res, next) => {
       });
     }
 
-    // Calculate the execution date based on the time
-    const calculateExecutionDate = (time: string): string => {
-      const now = new Date();
-      const [hours, minutes] = time.split(':').map(Number);
-      const executionDate = new Date(now);
-      executionDate.setHours(hours, minutes, 0, 0);
-      
-      // If the time has already passed today, set it for tomorrow
-      if (executionDate < now) {
-        executionDate.setDate(executionDate.getDate() + 1);
-      }
-      
-      return executionDate.toISOString().split('T')[0];
-    };
-
     // Process the task with the appropriate LLM
     const taskContent = await llmRouter.processTask(
       parsedIntent.taskDefinition,
       prompt
     );
 
-    // Create the task with the generated content
-    const task = {
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      prompt: prompt,
-      type: parsedIntent.taskDefinition.type,
-      source: parsedIntent.taskDefinition.source || null,
-      schedule: {
-        frequency: parsedIntent.taskDefinition.schedule.frequency,
-        time: parsedIntent.taskDefinition.schedule.time || null,
-        day: parsedIntent.taskDefinition.schedule.day || null,
-        date: parsedIntent.taskDefinition.schedule.frequency === 'once' ? 
-          calculateExecutionDate(parsedIntent.taskDefinition.schedule.time) : 
-          parsedIntent.taskDefinition.schedule.date || null,
-        interval: parsedIntent.taskDefinition.schedule.interval
-      },
-      action: parsedIntent.taskDefinition.action,
-      parameters: {
-        type: parsedIntent.taskDefinition.type,
-        ...parsedIntent.taskDefinition.parameters
-      },
-      previewResult: parsedIntent.taskDefinition.description,
-      deliveryMethod: parsedIntent.taskDefinition.deliveryMethod || 'in-app',
-      description: parsedIntent.taskDefinition.description,
-      logs: [],
-      status: 'pending',
-      lastExecution: null,
-      nextExecution: null,
-      isActive: true
-    };
+    // Create the task in the database
+    const task = await createTask({
+      ...parsedIntent.taskDefinition,
+      prompt,
+      previewResult: taskContent
+    }, userId);
 
-    // Save task to database
-    await prisma.task.create({
-      data: {
-        id: task.id,
-        description: task.description,
-        type: task.type,
-        userId,
-        metadata: JSON.stringify(task)
-      }
-    });
-
-    res.status(201).json(task);
+    res.json(task);
   } catch (error) {
     console.error('Error creating task:', error);
     next(error);
@@ -214,7 +144,7 @@ router.post('/:id/run', authenticateToken, (async (req: Request, res: Response, 
     }
     
     // Run task
-    const result = await runTask(id, req.user.id);
+    const result = await runTask(id, req.user.id.toString());
     
     if (!result) {
       res.status(404).json({ error: 'Task not found' });
@@ -237,7 +167,7 @@ router.delete('/:id', authenticateToken, (async (req: Request, res: Response, ne
       return;
     }
     
-    const success = await deleteTask(id, req.user.id);
+    const success = await deleteTask(id, req.user.id.toString());
     
     if (!success) {
       res.status(404).json({ error: 'Task not found' });

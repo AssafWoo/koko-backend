@@ -1,40 +1,67 @@
-import { Task, Schedule } from '@server/types/index';
+import { Task, Schedule, TaskType } from '@server/types/index';
 import { PrismaClient } from '@prisma/client';
-import { generateContent } from './contentGenerator';
-import { calculateNextExecutionTime } from '@server/utils/timeUtils';
+import { generateContent } from './contentGenerator.js';
+import { calculateNextExecutionTime, calculateRelativeTime } from '@server/utils/timeUtils.js';
 import { normalizeSchedule } from '@server/utils/scheduleUtils';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
-export const createTask = async (taskDefinition: {
-  type: Task['type'];
+interface TaskInput {
+  type: TaskType;
   source: string | null;
-  schedule: Task['schedule'];
+  schedule: Schedule;
   action: string;
-  parameters: Task['parameters'];
-  description: string;
-  deliveryMethod?: Task['deliveryMethod'];
-}, userId: string): Promise<Task> => {
+  parameters: any;
+  prompt: string;
+  previewResult: string;
+  description?: string;
+  deliveryMethod?: 'in-app' | 'email' | 'slack';
+}
+
+export const createTask = async (taskInput: TaskInput, userId: string): Promise<Task> => {
+  // Get current time in HH:mm format
   const now = new Date();
-  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  const currentDate = now.toISOString().split('T')[0];
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  
+  console.log('Processing task with prompt:', taskInput.prompt);
+  console.log('Current time:', currentTime);
+  
+  // Check if the prompt contains relative time and adjust the schedule accordingly
+  const prompt = taskInput.prompt?.toLowerCase() || '';
+  const hasRelativeTime = prompt.includes('in ') && (
+    prompt.includes('min') || 
+    prompt.includes('hour') ||
+    prompt.includes('half an hour')
+  );
 
-  // Normalize schedule
-  const schedule = taskDefinition.schedule ? normalizeSchedule(taskDefinition.schedule as Partial<Schedule>, currentTime, currentDate, '') : null;
+  if (hasRelativeTime) {
+    console.log('Detected relative time in prompt');
+    const calculatedTime = calculateRelativeTime(currentTime, prompt);
+    console.log('Calculated time:', calculatedTime);
+    
+    taskInput.schedule = {
+      ...taskInput.schedule,
+      time: calculatedTime.time,
+      date: calculatedTime.date,
+      frequency: 'once'
+    };
+  }
 
+  // Create the task object
   const task: Task = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    prompt: '',
-    type: taskDefinition.type,
-    source: taskDefinition.source,
-    schedule: schedule as Task['schedule'],
-    action: taskDefinition.action,
-    parameters: taskDefinition.parameters,
-    previewResult: taskDefinition.description,
-    deliveryMethod: taskDefinition.deliveryMethod || 'in-app',
-    description: taskDefinition.description,
+    prompt: taskInput.prompt,
+    type: taskInput.type,
+    source: taskInput.source,
+    schedule: taskInput.schedule,
+    action: taskInput.action,
+    parameters: taskInput.parameters,
+    previewResult: taskInput.previewResult,
+    deliveryMethod: taskInput.deliveryMethod || 'in-app',
+    description: taskInput.description || taskInput.previewResult,
     logs: [],
     status: 'pending',
     lastExecution: null,
@@ -42,6 +69,7 @@ export const createTask = async (taskDefinition: {
     isActive: true
   };
 
+  // Save task to database
   await prisma.task.create({
     data: {
       id: task.id,

@@ -4,7 +4,7 @@ Current time: {CURRENT_TIME}
 User's request: {USER_PROMPT}
 
 Time Rules:
-- Relative time (e.g., "in 5 mins") → add to current time
+- Relative time (e.g., "in 5 mins", "in half an hour") → add to current time
 - Time-of-day keywords:
   * "night" → 23:00
   * "evening" → 19:00
@@ -22,7 +22,7 @@ Frequency Rules:
 - "every X minutes" → frequency: "every_x_minutes", interval: X
 - "every [day of week]" (e.g., "every monday") → frequency: "weekly", day: [day]
 - "every [time of day]" (e.g., "every morning") → frequency: "daily", time: [time]
-- "in X mins/hours" → frequency: "once"
+- "in X mins/hours" or "in half an hour" → frequency: "once"
 - "at [time]" without frequency → frequency: "once"
 
 IMPORTANT: Return ONLY the JSON object, no additional text or explanation.
@@ -34,22 +34,22 @@ Return JSON:
     "source": string | null,
     "schedule": {
       "frequency": "once" | "daily" | "weekly" | "monthly" | "hourly" | "every_x_minutes",
-      "interval"?: number,
+      "interval": number | null,
       "time": string | null,
       "day": string | null,
       "date": string | null
     },
     "action": string,
     "parameters": {
-      "description"?: string,
-      "priority"?: "low" | "medium" | "high",
-      "target"?: string,
-      "format"?: "bullet" | "paragraph",
-      "length"?: "short" | "medium" | "long",
-      "url"?: string,
-      "selector"?: string,
-      "topic"?: string,
-      "level"?: "beginner" | "intermediate" | "advanced"
+      "description": string,
+      "priority": "low" | "medium" | "high" | null,
+      "target": string | null,
+      "format": "bullet" | "paragraph" | null,
+      "length": "short" | "medium" | "long" | null,
+      "url": string | null,
+      "selector": string | null,
+      "topic": string | null,
+      "level": "beginner" | "intermediate" | "advanced" | null
     },
     "description": string,
     "deliveryMethod": "in-app" | "email" | "slack"
@@ -57,19 +57,29 @@ Return JSON:
 }
 
 Examples:
-1. "remind me to call dad in 5 mins" →
+1. "remind me to call dad in half an hour" →
 {
   "taskDefinition": {
     "type": "reminder",
+    "source": null,
     "schedule": {
       "frequency": "once",
-      "time": "17:57",
+      "interval": null,
+      "time": "17:01",
+      "day": null,
       "date": "2024-03-21"
     },
     "action": "notify",
     "parameters": {
       "description": "Call dad",
-      "priority": "medium"
+      "priority": "medium",
+      "target": null,
+      "format": null,
+      "length": null,
+      "url": null,
+      "selector": null,
+      "topic": null,
+      "level": null
     },
     "description": "Call dad reminder",
     "deliveryMethod": "in-app"
@@ -80,14 +90,25 @@ Examples:
 {
   "taskDefinition": {
     "type": "reminder",
+    "source": null,
     "schedule": {
       "frequency": "daily",
-      "time": "08:00"
+      "interval": null,
+      "time": "08:00",
+      "day": null,
+      "date": null
     },
     "action": "notify",
     "parameters": {
       "description": "Drink water",
-      "priority": "medium"
+      "priority": "medium",
+      "target": null,
+      "format": null,
+      "length": null,
+      "url": null,
+      "selector": null,
+      "topic": null,
+      "level": null
     },
     "description": "Daily water reminder",
     "deliveryMethod": "in-app"
