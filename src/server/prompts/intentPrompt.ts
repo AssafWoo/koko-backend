@@ -5,10 +5,27 @@ User's request: {USER_PROMPT}
 
 Time Rules:
 - Relative time (e.g., "in 5 mins") → add to current time
+- Time-of-day keywords:
+  * "night" → 23:00
+  * "evening" → 19:00
+  * "afternoon" → 16:00
+  * "noon" → 12:00
+  * "morning" → 08:00
+  * "middle of the night" → 03:00
 - Use 24-hour format (HH:mm)
-- Relative time tasks → "once" frequency
-- Recurring tasks → specify time + frequency
-- One-time tasks → include date
+
+Frequency Rules:
+- "every day" or "daily" → frequency: "daily"
+- "every week" or "weekly" → frequency: "weekly"
+- "every month" or "monthly" → frequency: "monthly"
+- "every hour" or "hourly" → frequency: "hourly"
+- "every X minutes" → frequency: "every_x_minutes", interval: X
+- "every [day of week]" (e.g., "every monday") → frequency: "weekly", day: [day]
+- "every [time of day]" (e.g., "every morning") → frequency: "daily", time: [time]
+- "in X mins/hours" → frequency: "once"
+- "at [time]" without frequency → frequency: "once"
+
+IMPORTANT: Return ONLY the JSON object, no additional text or explanation.
 
 Return JSON:
 {
@@ -59,24 +76,59 @@ Examples:
   }
 }
 
-2. "give me 2 bread facts daily at 15:14" →
+2. "remind me to drink water every morning" →
 {
   "taskDefinition": {
-    "type": "summary",
+    "type": "reminder",
     "schedule": {
       "frequency": "daily",
-      "time": "15:14"
+      "time": "08:00"
     },
-    "action": "generate",
+    "action": "notify",
     "parameters": {
-      "target": "bread facts",
-      "format": "bullet",
-      "length": "short",
-      "count": 2
+      "description": "Drink water",
+      "priority": "medium"
     },
-    "description": "Daily bread facts",
+    "description": "Daily water reminder",
     "deliveryMethod": "in-app"
   }
 }
 
-Analyze and return similar JSON.`;
+3. "remind me to exercise every monday at 9am" →
+{
+  "taskDefinition": {
+    "type": "reminder",
+    "schedule": {
+      "frequency": "weekly",
+      "time": "09:00",
+      "day": "monday"
+    },
+    "action": "notify",
+    "parameters": {
+      "description": "Exercise",
+      "priority": "medium"
+    },
+    "description": "Weekly exercise reminder",
+    "deliveryMethod": "in-app"
+  }
+}
+
+4. "check my emails every 30 minutes" →
+{
+  "taskDefinition": {
+    "type": "fetch",
+    "schedule": {
+      "frequency": "every_x_minutes",
+      "interval": 30,
+      "time": null
+    },
+    "action": "fetch",
+    "parameters": {
+      "target": "emails"
+    },
+    "description": "Check emails every 30 minutes",
+    "deliveryMethod": "in-app"
+  }
+}
+
+Return ONLY the JSON object, no additional text.`;
