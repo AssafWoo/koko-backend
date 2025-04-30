@@ -1,0 +1,55 @@
+
+Product Name: Pebl
+
+Mission:
+Pebl is a personalized assistant that helps users automate small but meaningful tasks in their daily lives using natural language prompts. The assistant interprets user intent and converts it into structured tasks that run on a defined schedule — without any manual configuration.
+
+Core Backend Objective:
+The backend service is responsible for interpreting user prompts, creating structured tasks, storing them, and executing or triggering them on time.
+
+Supported Task Types (as of now):
+- reminder — Notify the user at a specific time or recurring schedule.
+- summary — Summarize content (e.g., emails, news) and deliver it at a set time.
+- notification — Send a message/alert based on conditions or routines (e.g., "buy groceries every Monday evening").
+
+Prompt Examples → Task Breakdown:
+Prompt: "Remind me to call dad everyday at 16"
+Type: reminder
+Schedule: daily @ 16:00
+Action: notify: "call dad"
+
+Prompt: "Summarize emails for me everyday at 23"
+Type: summary
+Schedule: daily @ 23:00
+Action: summarize: emails
+
+Prompt: "Every Monday evening, send me a notification to buy groceries"
+Type: notification
+Schedule: weekly, Monday @ 18:00–20:00
+Action: notify: "buy groceries"
+
+Prompt: "Remind me to call dad in 2 mins"
+Type: reminder
+Schedule: once, +2 minutes
+Action: notify: "call dad"
+
+Prompt: "Help me learn about history, send 1 topic summary every night"
+Type: summary
+Schedule: daily @ 21:00–23:00
+Action: summarize: 1 topic from history
+
+Core Concepts:
+- Natural Language Input → Structured JSON Task
+- Each task must include:
+  - type: What kind of task (e.g. reminder, summary)
+  - action: What to do (e.g. notify, summarize)
+  - parameters: What it affects (e.g. "call dad", "buy groceries")
+  - schedule: When to execute (supports one-time and recurring)
+  - status/logs: For tracking past executions
+- Backend handles: parsing, storing, scheduling, logging, updating tasks.
+
+Backend Principles:
+- Always interpret input in the context of helpful automation
+- Be minimal, fast, and predictable
+- Focus on user intent, not perfect grammar
+- Ensure tasks are reliable, logged, and recoverable
