@@ -1,6 +1,6 @@
 import { Ollama } from 'ollama';
-import { intentPrompt } from '../prompts/intentPrompt';
-import { Task, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters } from '../types';
+import { intentPrompt } from '@server/prompts/intentPrompt';
+import { Task, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters } from '@server/types';
 
 const ollama = new Ollama();
 

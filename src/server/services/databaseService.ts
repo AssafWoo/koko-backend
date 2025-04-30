@@ -1,5 +1,5 @@
-import pool from '../config/database';
-import { Task } from '../types';
+import pool from '@server/config/database';
+import { Task } from '@server/types';
 
 // Initialize the database with required tables
 export async function initializeDatabase() {

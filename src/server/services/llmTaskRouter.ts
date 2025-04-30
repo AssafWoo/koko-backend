@@ -1,5 +1,5 @@
 import { Ollama } from 'ollama';
-import { Task, TaskType } from '../types';
+import { Task, TaskType } from '@server/types';
 
 const ollama = new Ollama();
 

@@ -1,8 +1,8 @@
-import { Task, Schedule } from '../types/index';
+import { Task, Schedule } from '@server/types/index';
 import { PrismaClient } from '@prisma/client';
 import { generateContent } from './contentGenerator';
-import { calculateNextExecutionTime } from '../utils/timeUtils';
-import { normalizeSchedule } from '../utils/scheduleUtils';
+import { calculateNextExecutionTime } from '@server/utils/timeUtils';
+import { normalizeSchedule } from '@server/utils/scheduleUtils';
 
 const prisma = new PrismaClient();
 

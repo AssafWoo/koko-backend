@@ -1,5 +1,5 @@
 import { Ollama } from 'ollama';
-import { LearningParameters, LearningSource } from '../types/index';
+import { LearningParameters, LearningSource } from '@server/types/index';
 
 const ollama = new Ollama();
 

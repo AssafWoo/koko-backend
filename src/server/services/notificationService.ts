@@ -1,4 +1,4 @@
-import { Task, NotificationContent } from '../types';
+import { Task, NotificationContent } from '@server/types';
 
 export function createNotificationContent(
   task: Task,

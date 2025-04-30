@@ -1,4 +1,4 @@
-import { Schedule } from '../types';
+import { Schedule } from '@server/types';
 
 export const normalizeSchedule = (
   schedule: Partial<Schedule>,

@@ -1,6 +1,6 @@
 import { LLMTaskRouter } from './llmTaskRouter';
-import type { LearningSource } from '../types';
-import { LearningParameters } from '../types/index';
+import type { LearningSource } from '@server/types';
+import { LearningParameters } from '@server/types/index';
 
 const llmRouter = LLMTaskRouter.getInstance();
 

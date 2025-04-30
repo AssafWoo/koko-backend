@@ -67,7 +67,7 @@ router.post('/verify', (async (req: Request, res: Response, next: NextFunction):
     
     // Verify user still exists
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId }
+      where: { id: decoded.userId.toString() }
     });
 
     if (!user) {

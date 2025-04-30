@@ -1,6 +1,6 @@
 import express, { RequestHandler } from 'express';
 import { Request, Response, NextFunction } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken } from '@server/middleware/auth';
 
 const router = express.Router();
 

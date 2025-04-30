@@ -1,12 +1,13 @@
 import { Ollama } from 'ollama';
 import type { 
   Task, 
+  TaskType,
   LearningSource, 
   LearningParameters,
   ReminderParameters,
   SummaryParameters,
   FetchParameters 
-} from '../types';
+} from '@server/types';
 
 const ollama = new Ollama();
 

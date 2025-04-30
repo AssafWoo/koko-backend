@@ -1,9 +1,9 @@
 import { PrismaClient } from '@prisma/client';
-import { sendNotificationToClients } from '../routes/notificationRoutes.js';
+import { sendNotificationToClients } from '@server/routes/notificationRoutes.js';
 import { createNotificationContent } from './notificationService.js';
-import { Task, SummaryParameters, LearningParameters } from '../types/index.js';
+import { Task, SummaryParameters, LearningParameters } from '@server/types/index.js';
 import { generateContent } from './contentGenerator.js';
-import { formatTime, isTaskDue, calculateNextExecutionTime } from '../utils/timeUtils.js';
+import { formatTime, isTaskDue, calculateNextExecutionTime } from '@server/utils/timeUtils.js';
 import { addSeconds, differenceInSeconds } from 'date-fns';
 
 const prisma = new PrismaClient();

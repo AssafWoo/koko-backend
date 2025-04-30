@@ -1,14 +1,14 @@
 import express, { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken } from '@server/middleware/auth';
 import { Ollama } from 'ollama';
-import { intentPrompt } from '../prompts/intentPrompt';
+import { intentPrompt } from '@server/prompts/intentPrompt';
 import { RequestHandler } from 'express';
-import { Task } from '../types';
-import { createTask, getAllTasks, deleteTask, runTask } from '../services/taskService';
-import { extractTaskIntent } from '../utils/llmUtils';
-import { normalizeSchedule } from '../utils/scheduleUtils';
-import { LLMTaskRouter } from '../services/llmTaskRouter';
+import { Task } from '@server/types';
+import { createTask, getAllTasks, deleteTask, runTask } from '@server/services/taskService';
+import { extractTaskIntent } from '@server/utils/llmUtils';
+import { normalizeSchedule, calculateRelativeTime } from '@server/utils/scheduleUtils';
+import { LLMTaskRouter } from '@server/services/llmTaskRouter';
 import crypto from 'crypto';
 
 const router = express.Router();
@@ -43,42 +43,6 @@ const convertTimeOfDayToTime = (timeOfDay: string): string | null => {
   }
 
   return null;
-};
-
-// Helper function to calculate relative time
-const calculateRelativeTime = (currentTime: string, relativeTime: string): string => {
-  // First check for time-of-day keywords
-  const timeOfDayTime = convertTimeOfDayToTime(relativeTime);
-  if (timeOfDayTime) {
-    return timeOfDayTime;
-  }
-
-  // Parse relative time (e.g., "in 1 min", "in 5 minutes", "in 2 hours")
-  const match = relativeTime.match(/in (\d+) (min|mins|minute|minutes|hour|hours)/i);
-  if (!match) return currentTime;
-
-  const amount = parseInt(match[1]);
-  const unit = match[2].toLowerCase();
-
-  // Create a new Date object with the current time
-  const now = new Date();
-  const [hours, minutes] = currentTime.split(':').map(Number);
-  
-  // Set the time to the current time
-  now.setHours(hours);
-  now.setMinutes(minutes);
-  now.setSeconds(0);
-  now.setMilliseconds(0);
-
-  // Add the relative time
-  if (unit.startsWith('min')) {
-    now.setMinutes(now.getMinutes() + amount);
-  } else if (unit.startsWith('hour')) {
-    now.setHours(now.getHours() + amount);
-  }
-
-  // Format the time in 24-hour format
-  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 };
 
 // Get all tasks for the authenticated user
@@ -158,6 +122,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     // If no time-of-day match, check for relative time
     else if (prompt.toLowerCase().includes('in ') && 
             (prompt.toLowerCase().includes('min') || prompt.toLowerCase().includes('hour'))) {
+      // Use the utility function for relative time
       const calculatedTime = calculateRelativeTime(currentTime, prompt);
       parsedIntent.taskDefinition.schedule.time = calculatedTime;
       console.log('Adjusted time for relative schedule:', {

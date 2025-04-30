@@ -1,5 +1,5 @@
 import express, { Router, Request, Response } from 'express';
-import passport from '../config/auth';
+import passport from '@server/config/auth';
 
 const router = Router();
 
