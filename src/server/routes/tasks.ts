@@ -8,10 +8,12 @@ import { Task } from '../types';
 import { createTask, getAllTasks, deleteTask, runTask } from '../services/taskService';
 import { extractTaskIntent } from '../utils/llmUtils';
 import { normalizeSchedule } from '../utils/scheduleUtils';
+import { LLMTaskRouter } from '../services/llmTaskRouter';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 const ollama = new Ollama();
+const llmRouter = LLMTaskRouter.getInstance();
 
 // Helper function to calculate relative time
 const calculateRelativeTime = (currentTime: string, relativeTime: string): string => {
@@ -65,61 +67,73 @@ router.get('/', authenticateToken, (async (req: Request, res: Response, next: Ne
 }) as RequestHandler);
 
 // Create a new task
-router.post('/', authenticateToken, (async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    console.log('Received task creation request:', {
-      body: req.body,
-      user: req.user
-    });
+    console.log('POST /tasks - Request user:', req.user);
+    console.log('POST /tasks - Request body:', req.body);
+    
+    const userId = req.user?.id?.toString();
+    if (!userId) {
+      console.log('Invalid user ID in request');
+      res.status(401).json({ message: 'Invalid user ID' });
+      return;
+    }
 
     const { prompt } = req.body;
-    
-    if (!req.user?.id) {
-      console.log('No user ID found in request');
-      res.status(401).json({ error: 'User not authenticated' });
-      return;
-    }
-
     if (!prompt) {
       console.log('No prompt provided');
-      res.status(400).json({ error: 'Prompt is required' });
+      res.status(400).json({ message: 'Prompt is required' });
       return;
     }
 
-    // Get current time in HH:mm format with proper timezone handling
+    // Get current time in HH:mm format
     const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    const currentDate = now.toISOString().split('T')[0];
-    
-    // Extract task intent using LLM
-    const parsedIntent = await extractTaskIntent(prompt, currentTime);
-    const taskDefinition = parsedIntent.taskDefinition;
+    const currentHours = now.getHours().toString().padStart(2, '0');
+    const currentMinutes = now.getMinutes().toString().padStart(2, '0');
+    const currentTime = `${currentHours}:${currentMinutes}`;
+    console.log('Current time:', currentTime);
 
-    // Normalize schedule
-    const schedule = normalizeSchedule(taskDefinition.schedule, currentTime, currentDate, prompt);
+    // Use Mistral for intent analysis
+    console.log('Analyzing intent with Mistral for prompt:', prompt);
+    const intentResponse = await llmRouter.processTask(
+      { type: 'intent' } as any,
+      intentPrompt.replace('{USER_PROMPT}', prompt).replace('{CURRENT_TIME}', currentTime)
+    );
 
-    // Create the task
-    const task = await createTask({
-      type: taskDefinition.type,
-      source: null,
-      schedule,
-      action: taskDefinition.action,
-      parameters: taskDefinition.parameters || {},
-      description: taskDefinition.description,
-      deliveryMethod: 'in-app'
-    }, req.user.id);
+    console.log('Mistral response:', intentResponse);
+    let parsedIntent;
+    try {
+      parsedIntent = JSON.parse(intentResponse);
+    } catch (error) {
+      console.error('Error parsing intent response:', error);
+      res.status(500).json({ message: 'Failed to parse task intent' });
+      return;
+    }
 
-    console.log('Task created successfully:', task);
-    res.status(201).json({
-      success: true,
-      task,
-      parsedIntent
-    });
+    // Process the task with the appropriate LLM
+    const taskContent = await llmRouter.processTask(
+      parsedIntent.taskDefinition,
+      prompt
+    );
+
+    // Create the task with the generated content
+    const task = {
+      ...parsedIntent.taskDefinition,
+      userId,
+      content: taskContent,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    // Save task to database (implement your database logic here)
+    // const savedTask = await Task.create(task);
+
+    res.status(201).json(task);
   } catch (error) {
-    console.error('Error in task creation:', error);
+    console.error('Error creating task:', error);
     next(error);
   }
-}) as express.RequestHandler);
+});
 
 // Run a task
 router.post('/:id/run', authenticateToken, (async (req: Request, res: Response, next: NextFunction) => {
