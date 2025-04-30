@@ -68,13 +68,14 @@ router.get('/', authenticateToken, (async (req: Request, res: Response, next: Ne
 }) as RequestHandler);
 
 // Create a new task
-router.post('/', authenticateToken, async (req, res, next) => {
+router.post('/', authenticateToken, (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { prompt } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
     }
 
     // Get current time in HH:mm format
@@ -114,16 +115,44 @@ router.post('/', authenticateToken, async (req, res, next) => {
     }
 
     // Process the task with the appropriate LLM
-    const taskContent = await llmRouter.processTask(
-      parsedIntent.taskDefinition,
-      prompt
-    );
+    const tempTask: Task = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      prompt,
+      type: parsedIntent.taskDefinition.type,
+      source: parsedIntent.taskDefinition.source,
+      schedule: {
+        ...parsedIntent.taskDefinition.schedule,
+        day: parsedIntent.taskDefinition.schedule.day || null,
+        date: parsedIntent.taskDefinition.schedule.date || null,
+        time: parsedIntent.taskDefinition.schedule.time || null
+      },
+      action: parsedIntent.taskDefinition.action,
+      parameters: parsedIntent.taskDefinition.parameters,
+      previewResult: '',
+      deliveryMethod: 'in-app',
+      description: parsedIntent.taskDefinition.description,
+      logs: [],
+      status: 'pending',
+      lastExecution: null,
+      nextExecution: null,
+      isActive: true
+    };
+
+    const taskContent = await llmRouter.processTask(tempTask, prompt);
 
     // Create the task in the database
     const task = await createTask({
       ...parsedIntent.taskDefinition,
       prompt,
-      previewResult: taskContent
+      previewResult: taskContent,
+      schedule: {
+        ...parsedIntent.taskDefinition.schedule,
+        day: parsedIntent.taskDefinition.schedule.day || null,
+        date: parsedIntent.taskDefinition.schedule.date || null,
+        time: parsedIntent.taskDefinition.schedule.time || null
+      }
     }, userId);
 
     res.json(task);
@@ -131,7 +160,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     console.error('Error creating task:', error);
     next(error);
   }
-});
+}) as RequestHandler);
 
 // Run a task
 router.post('/:id/run', authenticateToken, (async (req: Request, res: Response, next: NextFunction) => {

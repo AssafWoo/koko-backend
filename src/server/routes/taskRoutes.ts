@@ -65,7 +65,17 @@ router.post('/', async (req, res) => {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
-    const task = await createTask(validatedData, userId);
+    const task = await createTask({
+      ...validatedData,
+      prompt: validatedData.description,
+      previewResult: validatedData.description,
+      schedule: validatedData.schedule || {
+        frequency: 'once',
+        time: null,
+        day: null,
+        date: null
+      }
+    }, userId);
     res.json(task);
   } catch (error) {
     if (error instanceof Error) {
