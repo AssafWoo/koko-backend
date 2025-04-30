@@ -2,9 +2,9 @@ import { Task } from '../types/index';
 import { PrismaClient } from '@prisma/client';
 import { generateContent } from './contentGenerator';
 import { calculateNextExecutionTime } from '../utils/timeUtils';
+import { normalizeSchedule } from '../utils/scheduleUtils';
 
 const prisma = new PrismaClient();
-
 
 export const createTask = async (taskDefinition: {
   type: Task['type'];
@@ -15,14 +15,12 @@ export const createTask = async (taskDefinition: {
   description: string;
   deliveryMethod?: Task['deliveryMethod'];
 }, userId: number): Promise<Task> => {
-  // Validate and set default values for schedule
-  const schedule: Task['schedule'] = {
-    frequency: taskDefinition.schedule?.frequency || 'once',
-    time: taskDefinition.schedule?.time || new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-    day: taskDefinition.schedule?.day || null,
-    date: taskDefinition.schedule?.date || (taskDefinition.schedule?.frequency === 'once' ? new Date().toISOString().split('T')[0] : null),
-    interval: taskDefinition.schedule?.interval
-  };
+  const now = new Date();
+  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  const currentDate = now.toISOString().split('T')[0];
+
+  // Normalize schedule
+  const schedule = normalizeSchedule(taskDefinition.schedule, currentTime, currentDate, '');
 
   const task: Task = {
     id: crypto.randomUUID(),
@@ -55,75 +53,57 @@ export const createTask = async (taskDefinition: {
   return task;
 };
 
-export const getTask = async (id: string, userId: number): Promise<Task | undefined> => {
-  const dbTask = await prisma.task.findFirst({
-    where: { 
-      id,
-      userId
-    }
-  });
-
-  if (!dbTask) return undefined;
-
-  return JSON.parse(dbTask.metadata || '{}');
-};
-
 export const getAllTasks = async (userId: number): Promise<Task[]> => {
-  const dbTasks = await prisma.task.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' }
+  const tasks = await prisma.task.findMany({
+    where: { userId }
   });
 
-  return dbTasks.map(dbTask => JSON.parse(dbTask.metadata || '{}'));
+  return tasks.map(task => JSON.parse(task.metadata));
 };
 
-export const updateTaskStatus = async (id: string, userId: number, status: Task['status'], logMessage?: string): Promise<Task | undefined> => {
-  const dbTask = await prisma.task.findFirst({
-    where: { 
-      id,
-      userId
-    }
+export const getTask = async (id: string, userId: number): Promise<Task | undefined> => {
+  const task = await prisma.task.findFirst({
+    where: { id, userId }
   });
 
-  if (!dbTask) return undefined;
-
-  const task = JSON.parse(dbTask.metadata || '{}');
-  task.status = status;
-  task.lastExecution = new Date().toISOString();
-  
-  if (logMessage) {
-    task.logs.push({
-      timestamp: new Date().toISOString(),
-      message: logMessage
-    });
-  }
-
-  await prisma.task.update({
-    where: { id },
-    data: { metadata: JSON.stringify(task) }
-  });
-
-  return task;
+  return task ? JSON.parse(task.metadata) : undefined;
 };
 
 export const deleteTask = async (id: string, userId: number): Promise<boolean> => {
-  try {
-    const task = await prisma.task.findFirst({
-      where: { 
-        id,
-        userId
-      }
-    });
+  const task = await prisma.task.findFirst({
+    where: { id, userId }
+  });
 
-    if (!task) return false;
+  if (!task) return false;
 
-    await prisma.task.delete({
-      where: { id }
-    });
-    return true;
-  } catch (error) {
-    return false;
-  }
+  await prisma.task.delete({
+    where: { id }
+  });
+
+  return true;
+};
+
+export const updateTaskStatus = async (
+  id: string,
+  userId: number,
+  status: Task['status'],
+  previewResult?: string
+): Promise<void> => {
+  const task = await getTask(id, userId);
+  if (!task) return;
+
+  const updatedTask = {
+    ...task,
+    status,
+    previewResult: previewResult || task.previewResult
+  };
+
+  await prisma.task.update({
+    where: { id },
+    data: {
+      metadata: JSON.stringify(updatedTask)
+    }
+  });
 };
 
 export const runTask = async (id: string, userId: number): Promise<Task | undefined> => {
