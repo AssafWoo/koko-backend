@@ -6,6 +6,7 @@ import { createNotificationContent, sendNotification } from '@server/services/no
 import { authenticateToken } from '@server/middleware/auth';
 import { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
+import { timePatterns, datePatterns, allPatterns } from '@server/patterns/taskPatterns';
 
 const router = express.Router();
 
@@ -152,8 +153,62 @@ async function callLLMWithFallback(prompt: string): Promise<LLMResponse> {
   }
 }
 
+// Add Pre-LLM Filtering Layer
+interface PreLLMResult {
+  handled: boolean;
+  result?: string;
+  error?: string;
+  type?: TaskType;
+}
+
+function preLLMFilter(prompt: string): PreLLMResult {
+  const normalized = prompt.trim().toLowerCase();
+
+  // Empty or invalid input
+  if (!normalized) {
+    return {
+      handled: true,
+      error: 'Please enter a valid request.'
+    };
+  }
+
+  // Time-based queries
+  if (timePatterns.some(pattern => pattern.test(normalized))) {
+    return {
+      handled: true,
+      result: `The current time is ${new Date().toLocaleTimeString()}`,
+      type: 'reminder'
+    };
+  }
+
+  // Date-based queries
+  if (datePatterns.some(pattern => pattern.test(normalized))) {
+    return {
+      handled: true,
+      result: `Today's date is ${new Date().toLocaleDateString()}`,
+      type: 'reminder'
+    };
+  }
+
+  // Check all patterns
+  for (const { pattern, type } of allPatterns) {
+    if (pattern.test(normalized)) {
+      return {
+        handled: true,
+        type: type as TaskType,
+        result: `I'll ${type} ${normalized.replace(pattern, '').trim()}`
+      };
+    }
+  }
+
+  // Not handled by pre-filter
+  return {
+    handled: false
+  };
+}
+
 // Apply rate limiter to the POST route
-router.post('/', llmLimiter, async (req, res) => {
+router.post('/', llmLimiter, async (req: Request, res: Response): Promise<void> => {
   try {
     const validatedData = taskInputSchema.parse(req.body);
     const userId = req.user?.id?.toString();
@@ -166,6 +221,36 @@ router.post('/', llmLimiter, async (req, res) => {
     const normalizedDescription = normalizeInput(validatedData.description);
     validatedData.description = normalizedDescription;
 
+    // Pre-LLM Filtering Layer
+    const preFilterResult = preLLMFilter(normalizedDescription);
+    if (preFilterResult.handled) {
+      if (preFilterResult.error) {
+        res.status(400).json({ error: preFilterResult.error });
+        return;
+      }
+
+      // If we have a result from pre-filter, use it
+      const task = await createTask({
+        ...validatedData,
+        type: preFilterResult.type || validatedData.type,
+        prompt: validatedData.description,
+        previewResult: preFilterResult.result || validatedData.description,
+        schedule: validatedData.schedule || {
+          frequency: 'once',
+          time: null,
+          day: null,
+          date: null
+        }
+      }, userId);
+
+      res.json({
+        task,
+        preFiltered: true,
+        message: 'Request handled by pre-filter'
+      });
+      return;
+    }
+
     // Quick task type detection before LLM
     const quickType = quickTaskTypeDetect(normalizedDescription);
     if (quickType) {
@@ -175,7 +260,6 @@ router.post('/', llmLimiter, async (req, res) => {
     // Fallback/Graceful Degradation Layer
     const llmResult = await callLLMWithFallback(validatedData.description);
     
-    // If there was an error but we have a task type, we can still proceed
     const task = await createTask({
       ...validatedData,
       prompt: validatedData.description,
@@ -188,7 +272,6 @@ router.post('/', llmLimiter, async (req, res) => {
       }
     }, userId);
 
-    // If there was an LLM error, include it in the response
     if (llmResult.error) {
       res.json({
         task,
