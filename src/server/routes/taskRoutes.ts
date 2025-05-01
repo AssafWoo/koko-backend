@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { Task, Schedule, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters, LearningSource } from '@server/types';
+import { Task, Schedule, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters, LearningSource, TaskType } from '@server/types';
 import { createTask, runTask, updateTask } from '@server/services/taskService';
 import { createNotificationContent, sendNotification } from '@server/services/notificationService';
 import { authenticateToken } from '@server/middleware/auth';
@@ -69,6 +69,32 @@ const taskUpdateSchema = z.object({
   type: z.enum(['reminder', 'summary', 'fetch', 'learning']).optional()
 });
 
+const TASK_TYPE_KEYWORDS: Record<TaskType, string[]> = {
+  reminder: [
+    'remind', 'reminder', 'alert', 'notify', 'notification', 'ping', 'nudge', 'prompt', 'remember', 'wake', 'wakeup', 'alarm', 'deadline', 'due', 'schedule', 'calendar', 'appointment', 'meeting'
+  ],
+  learning: [
+    'teach', 'learn', 'study', 'explain', 'educate', 'lesson', 'course', 'training', 'tutorial', 'instruct', 'instruction', 'guide', 'how to', 'show me', 'help me understand', 'what is', 'definition', 'meaning', 'overview', 'introduction', 'basics', 'fundamentals', 'info about', 'information on', 'details about'
+  ],
+  summary: [
+    'summarize', 'summary', 'recap', 'brief', 'condense', 'outline', 'abstract', 'digest', 'highlight', 'key points', 'main points', 'tl;dr', 'short version', 'in short', 'in a nutshell', 'essence', 'core idea', 'main idea', 'quick look', 'quick review'
+  ],
+  fetch: [
+    'fetch', 'get', 'retrieve', 'collect', 'pull', 'download', 'obtain', 'acquire', 'gather', 'lookup', 'search', 'find', 'show', 'display', 'present', 'bring', 'access', 'scrape', 'extract', 'load', 'list', 'provide', 'give me', 'show me', 'find me', 'look up', 'check', 'scan'
+  ],
+  // If you have a 'send' type, add it here
+};
+
+function quickTaskTypeDetect(prompt: string): TaskType | null {
+  const lower = prompt.toLowerCase();
+  for (const [type, keywords] of Object.entries(TASK_TYPE_KEYWORDS)) {
+    if (keywords.some(word => lower.includes(word))) {
+      return type as TaskType;
+    }
+  }
+  return null; // fallback to LLM
+}
+
 router.post('/', async (req, res) => {
   try {
     const validatedData = taskInputSchema.parse(req.body);
@@ -77,6 +103,13 @@ router.post('/', async (req, res) => {
       res.status(401).json({ error: 'User not authenticated' });
       return;
     }
+
+    // Quick task type detection before LLM
+    const quickType = quickTaskTypeDetect(validatedData.description);
+    if (quickType) {
+      validatedData.type = quickType;
+    }
+
     const task = await createTask({
       ...validatedData,
       prompt: validatedData.description,
