@@ -14,7 +14,14 @@ export const isTaskDue = (
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes',
   lastExecution: string | null,
   interval?: number,
-  scheduledDate?: string
+  scheduledDate?: string,
+  schedule?: {
+    frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes';
+    time: string | null;
+    day?: string | null;
+    date?: string | null;
+    interval?: number;
+  }
 ): boolean => {
   const now = new Date();
   const [scheduledHours, scheduledMinutes] = scheduledTime.split(':').map(Number);
@@ -67,12 +74,11 @@ export const isTaskDue = (
 
   // For weekly tasks, check if it's the right day and time
   if (frequency === 'weekly') {
-    const lastExecDate = lastExecution ? new Date(lastExecution) : null;
-    const lastExecDay = lastExecDate ? lastExecDate.getDay() : -1;
+    const scheduledDay = schedule?.day ? parseInt(schedule.day) : 0; // Default to Monday (0) if no day specified
     const currentDay = now.getDay();
     
     const timeMatches = Math.abs(currentSecondsSinceMidnight - scheduledSecondsSinceMidnight) <= 30;
-    const isCorrectDay = currentDay === lastExecDay;
+    const isCorrectDay = currentDay === scheduledDay;
     
     return timeMatches && isCorrectDay;
   }

@@ -259,20 +259,31 @@ const runScheduler = async () => {
         }
       }
     });
-    
-    if (tasks.length === 0) {
+
+    // Filter tasks after fetching to ensure proper JSON parsing
+    const activeTasks = tasks.filter(task => {
+      try {
+        const metadata = JSON.parse(task.metadata || '{}');
+        return metadata.status === 'pending' && metadata.isActive === true;
+      } catch (error) {
+        console.error(`Error parsing metadata for task ${task.id}:`, error);
+        return false;
+      }
+    });
+
+    if (activeTasks.length === 0) {
       console.log('No pending tasks found');
       return;
     }
 
-    console.log(`Found ${tasks.length} pending tasks`);
+    console.log(`Found ${activeTasks.length} pending tasks`);
     const now = new Date();
     const currentTime = formatTime(now);
 
     // Clear the queue and repopulate with due tasks
     taskQueue.length = 0;
     
-    for (const task of tasks) {
+    for (const task of activeTasks) {
       try {
         let metadata = metadataCache.get(task.id);
         if (!metadata) {
@@ -280,8 +291,8 @@ const runScheduler = async () => {
           metadataCache.set(task.id, metadata);
         }
         
-        if (metadata.status !== 'pending') {
-          console.log(`Task ${task.id} is not pending, status: ${metadata.status}`);
+        if (metadata.status !== 'pending' || !metadata.isActive) {
+          console.log(`Task ${task.id} is not pending or is deleted, status: ${metadata.status}, isActive: ${metadata.isActive}`);
           continue;
         }
 
@@ -299,7 +310,8 @@ const runScheduler = async () => {
           schedule.frequency,
           metadata.lastExecution,
           schedule.interval,
-          schedule.date
+          schedule.date,
+          schedule
         )) {
           console.log(`Task ${task.id} is due, adding to queue`);
           const taskObj: Task = {

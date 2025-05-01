@@ -66,7 +66,13 @@ const createTask = async (taskInput, userId) => {
 exports.createTask = createTask;
 const getAllTasks = async (userId) => {
     const tasks = await prisma.task.findMany({
-        where: { userId }
+        where: {
+            userId,
+            metadata: {
+                path: ['isActive'],
+                equals: "true"
+            }
+        }
     });
     return tasks.map(task => {
         if (!task.metadata)
@@ -90,8 +96,18 @@ const deleteTask = async (id, userId) => {
     });
     if (!task)
         return false;
-    await prisma.task.delete({
-        where: { id }
+    
+    // Instead of deleting, mark as inactive
+    const metadata = JSON.parse(task.metadata || '{}');
+    await prisma.task.update({
+        where: { id },
+        data: {
+            metadata: JSON.stringify({
+                ...metadata,
+                isActive: false,
+                status: 'deleted'
+            })
+        }
     });
     return true;
 };

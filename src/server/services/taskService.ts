@@ -56,7 +56,10 @@ export const createTask = async (taskInput: TaskInput, userId: string): Promise<
     prompt: taskInput.prompt,
     type: taskInput.type,
     source: taskInput.source,
-    schedule: taskInput.schedule,
+    schedule: {
+      ...taskInput.schedule,
+      day: taskInput.schedule.frequency === 'weekly' ? (taskInput.schedule.day || '0') : taskInput.schedule.day
+    },
     action: taskInput.action,
     parameters: taskInput.parameters,
     previewResult: taskInput.previewResult,
@@ -110,8 +113,17 @@ export const deleteTask = async (id: string, userId: string): Promise<boolean> =
 
   if (!task) return false;
 
-  await prisma.task.delete({
-    where: { id }
+  // Instead of deleting, mark as inactive
+  const metadata = JSON.parse(task.metadata || '{}');
+  await prisma.task.update({
+    where: { id },
+    data: {
+      metadata: JSON.stringify({
+        ...metadata,
+        isActive: false,
+        status: 'deleted'
+      })
+    }
   });
 
   return true;
