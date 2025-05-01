@@ -5,6 +5,7 @@ import { createTask, runTask, updateTask } from '@server/services/taskService';
 import { createNotificationContent, sendNotification } from '@server/services/notificationService';
 import { authenticateToken } from '@server/middleware/auth';
 import { Request, Response, NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 
 const router = express.Router();
 
@@ -113,7 +114,15 @@ function quickTaskTypeDetect(prompt: string): TaskType | null {
   return null; // fallback to LLM
 }
 
-router.post('/', async (req, res) => {
+// Create a rate limiter for LLM routes
+const llmLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // limit each user to 5 LLM requests per minute
+  message: 'Too many requests, please try again later.'
+});
+
+// Apply rate limiter to the POST route
+router.post('/', llmLimiter, async (req, res) => {
   try {
     const validatedData = taskInputSchema.parse(req.body);
     const userId = req.user?.id?.toString();
