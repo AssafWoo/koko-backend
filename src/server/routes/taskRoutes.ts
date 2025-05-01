@@ -1,8 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
 import { Task, Schedule, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters, LearningSource } from '@server/types';
-import { createTask, runTask } from '@server/services/taskService';
+import { createTask, runTask, updateTask } from '@server/services/taskService';
 import { createNotificationContent, sendNotification } from '@server/services/notificationService';
+import { authenticateToken } from '@server/middleware/auth';
+import { Request, Response, NextFunction } from 'express';
 
 const router = express.Router();
 
@@ -57,6 +59,16 @@ const taskInputSchema = z.object({
   deliveryMethod: z.enum(['in-app', 'email', 'slack']).optional()
 });
 
+const taskUpdateSchema = z.object({
+  description: z.string().optional(),
+  schedule: z.object({
+    time: z.string().nullable().optional(),
+    day: z.string().nullable().optional(),
+    frequency: z.enum(['once', 'daily', 'weekly', 'monthly', 'hourly', 'every_x_minutes', 'continuous']).optional()
+  }).optional(),
+  type: z.enum(['reminder', 'summary', 'fetch', 'learning']).optional()
+});
+
 router.post('/', async (req, res) => {
   try {
     const validatedData = taskInputSchema.parse(req.body);
@@ -106,6 +118,34 @@ router.post('/:id/run', async (req, res) => {
     await sendNotification('taskCompleted', notification);
     
     res.json(result);
+  } catch (error) {
+    if (error instanceof Error) {
+      res.status(400).json({ error: error.message });
+    } else {
+      res.status(400).json({ error: 'An unknown error occurred' });
+    }
+  }
+});
+
+router.put('/:id', authenticateToken, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id?.toString();
+    
+    if (!userId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const validatedData = taskUpdateSchema.parse(req.body);
+    const updatedTask = await updateTask(id, userId, validatedData);
+
+    if (!updatedTask) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    res.json(updatedTask);
   } catch (error) {
     if (error instanceof Error) {
       res.status(400).json({ error: error.message });

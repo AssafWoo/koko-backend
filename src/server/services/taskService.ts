@@ -205,4 +205,47 @@ export const runTask = async (id: string, userId: string): Promise<Task | undefi
     await updateTaskStatus(id, userId, 'failed', errorMessage);
     return getTask(id, userId);
   }
+};
+
+export const updateTask = async (
+  id: string,
+  userId: string,
+  updates: {
+    description?: string;
+    schedule?: {
+      time?: string | null;
+      day?: string | null;
+      frequency?: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous';
+    };
+    type?: TaskType;
+  }
+): Promise<Task | undefined> => {
+  const task = await getTask(id, userId);
+  if (!task) return undefined;
+
+  const updatedTask: Task = {
+    ...task,
+    updatedAt: new Date().toISOString(),
+    description: updates.description ?? task.description,
+    type: updates.type ?? task.type,
+    schedule: updates.schedule ? {
+      ...task.schedule,
+      time: updates.schedule.time ?? task.schedule?.time ?? null,
+      day: updates.schedule.day ?? task.schedule?.day ?? null,
+      frequency: updates.schedule.frequency ?? task.schedule?.frequency ?? 'once',
+      date: task.schedule?.date ?? null,
+      interval: task.schedule?.interval
+    } : task.schedule
+  };
+
+  await prisma.task.update({
+    where: { id },
+    data: {
+      description: updatedTask.description,
+      type: updatedTask.type,
+      metadata: JSON.stringify(updatedTask)
+    }
+  });
+
+  return updatedTask;
 }; 
