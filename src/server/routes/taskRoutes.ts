@@ -85,6 +85,24 @@ const TASK_TYPE_KEYWORDS: Record<TaskType, string[]> = {
   // If you have a 'send' type, add it here
 };
 
+function normalizeInput(input: string): string {
+  // Trim whitespace
+  let normalized = input.trim();
+  // Convert to lowercase
+  normalized = normalized.toLowerCase();
+  // Expand common abbreviations (example: 'rem' -> 'remind')
+  const abbreviations: Record<string, string> = {
+    'rem': 'remind',
+    'sum': 'summarize',
+    'fetch': 'get',
+    'learn': 'study'
+  };
+  Object.entries(abbreviations).forEach(([abbr, full]) => {
+    normalized = normalized.replace(new RegExp(`\\b${abbr}\\b`, 'g'), full);
+  });
+  return normalized;
+}
+
 function quickTaskTypeDetect(prompt: string): TaskType | null {
   const lower = prompt.toLowerCase();
   for (const [type, keywords] of Object.entries(TASK_TYPE_KEYWORDS)) {
@@ -104,8 +122,12 @@ router.post('/', async (req, res) => {
       return;
     }
 
+    // Input Validation & Normalization Layer
+    const normalizedDescription = normalizeInput(validatedData.description);
+    validatedData.description = normalizedDescription;
+
     // Quick task type detection before LLM
-    const quickType = quickTaskTypeDetect(validatedData.description);
+    const quickType = quickTaskTypeDetect(normalizedDescription);
     if (quickType) {
       validatedData.type = quickType;
     }
