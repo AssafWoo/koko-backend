@@ -1,0 +1,247 @@
+Service Decoupling & Refactor Instructions
+==========================================
+
+Purpose
+-------
+This document provides a detailed, step-by-step guide for decoupling the Task Scheduler and related services in our backend. The aim is to achieve a clean separation of concerns, reduce coupling, and make each service independently testable, maintainable, and scalable.
+
+--------------------------------------------------------------------------------
+
+Insights & Rationale
+--------------------
+- **Current Problem:**  
+  The Task Scheduler currently handles scheduling, database operations (Prisma), notification sending, and content generation. This creates tight coupling, makes testing difficult, and violates the Single Responsibility Principle (SRP).
+
+- **Goal:**  
+  Each service should do only its own job, and communicate via events, not direct calls. This will make the system more modular, testable, and scalable.  
+  - **Benefits:**  
+    - Easier unit testing (no need to mock unrelated dependencies)
+    - Clearer code ownership and responsibility
+    - Easier to add/replace features (e.g., swap notification provider)
+    - Better scalability and maintainability
+
+--------------------------------------------------------------------------------
+
+Target Architecture Overview
+---------------------------
+- **TaskScheduler**: Handles only scheduling logic and emits events when a task is due.
+- **TaskRepository**: Handles all database operations (CRUD for tasks).
+- **NotificationService**: Handles all notification logic.
+- **ContentGenerationService**: Handles content generation.
+- **EventBus**: Facilitates communication between services via events.
+
+--------------------------------------------------------------------------------
+
+Step-by-Step Refactor Plan
+--------------------------
+
+1. **Implement an Event Bus**
+   - Create a simple event bus (e.g., using Node.js EventEmitter).
+   - All services will use this for communication.
+   - Example:
+     ```js
+     // src/server/events/EventBus.ts
+     import { EventEmitter } from 'events';
+     export const eventBus = new EventEmitter();
+     ```
+
+2. **Refactor TaskScheduler**
+   - Remove all direct database, notification, and content generation logic.
+   - Only keep scheduling, timing, and queue logic.
+   - When a task is due, emit an event (e.g., `task.due`) with the task payload.
+   - Example:
+     ```js
+     import { eventBus } from '../events/EventBus';
+     class TaskScheduler {
+       // ...
+       private onTaskDue(task) {
+         eventBus.emit('task.due', task);
+       }
+     }
+     ```
+   - The scheduler should not import or call NotificationService, ContentGenerationService, or Prisma directly.
+
+3. **Create TaskRepository**
+   - Move all Prisma/database logic here.
+   - Expose methods like:
+     - `findPendingTasks()`
+     - `updateTaskStatus(taskId, status)`
+     - `saveTaskResult(taskId, result)`
+   - The scheduler should call these methods via the repository, not Prisma directly.
+   - Example:
+     ```js
+     class TaskRepository {
+       constructor(private prisma) {}
+       async findPendingTasks() { /* ... */ }
+       async updateTaskStatus(id, status) { /* ... */ }
+     }
+     ```
+
+4. **Create NotificationService**
+   - Move all notification logic here.
+   - Subscribe to relevant events (e.g., `task.due`, `task.completed`).
+   - Send notifications when these events are received.
+   - Example:
+     ```js
+     import { eventBus } from '../events/EventBus';
+     eventBus.on('task.due', (task) => {
+       // send notification
+     });
+     ```
+
+5. **Create ContentGenerationService**
+   - Move all content generation logic here.
+   - Subscribe to relevant events (e.g., `task.due` if content is needed).
+   - Generate content and emit a new event if necessary.
+   - Example:
+     ```js
+     import { eventBus } from '../events/EventBus';
+     eventBus.on('task.due', (task) => {
+       // generate content, then:
+       eventBus.emit('content.generated', { taskId: task.id, content });
+     });
+     ```
+
+6. **Update Service Interactions**
+   - All communication between services should be via the EventBus.
+   - No service should import or call another service directly except the EventBus.
+   - Example event flow:
+     - TaskScheduler emits `task.due`
+     - ContentGenerationService listens for `task.due`, generates content, emits `content.generated`
+     - NotificationService listens for `content.generated` and/or `task.due`, sends notifications
+
+7. **Testing**
+   - Each service should be tested in isolation by mocking the EventBus.
+   - No need to mock Prisma in TaskScheduler tests.
+   - Integration tests can be written by wiring up the EventBus and all services.
+   - Example:
+     - Unit test TaskScheduler by emitting and listening for events
+     - Unit test TaskRepository with a mock database
+     - Unit test NotificationService by listening for events and checking notification calls
+
+--------------------------------------------------------------------------------
+
+Example Directory Structure
+--------------------------
+src/
+  server/
+    scheduler/
+      TaskScheduler.ts
+    repository/
+      TaskRepository.ts
+    notifications/
+      NotificationService.ts
+    content/
+      ContentGenerationService.ts
+    events/
+      EventBus.ts
+    index.ts (wires everything together)
+
+--------------------------------------------------------------------------------
+
+Example EventBus Implementation
+-------------------------------
+src/server/events/EventBus.ts
+-----------------------------
+import { EventEmitter } from 'events';
+export const eventBus = new EventEmitter();
+
+--------------------------------------------------------------------------------
+
+Example Usage
+-------------
+TaskScheduler.ts
+----------------
+import { eventBus } from '../events/EventBus';
+class TaskScheduler {
+  // ...
+  private onTaskDue(task) {
+    eventBus.emit('task.due', task);
+  }
+}
+
+NotificationService.ts
+----------------------
+import { eventBus } from '../events/EventBus';
+eventBus.on('task.due', (task) => {
+  // send notification
+});
+
+ContentGenerationService.ts
+---------------------------
+import { eventBus } from '../events/EventBus';
+eventBus.on('task.due', (task) => {
+  // generate content, then:
+  eventBus.emit('content.generated', { taskId: task.id, content });
+});
+
+--------------------------------------------------------------------------------
+
+Migration Checklist
+-------------------
+[ ] Implement EventBus
+[ ] Refactor TaskScheduler to remove direct dependencies
+[ ] Move all Prisma logic to TaskRepository
+[ ] Move all notification logic to NotificationService
+[ ] Move all content logic to ContentGenerationService
+[ ] Update all service interactions to use EventBus
+[ ] Update and add tests for each service
+
+--------------------------------------------------------------------------------
+
+Detailed Migration Steps
+-----------------------
+
+1. **Create EventBus**
+   - Implement a singleton EventBus using Node.js EventEmitter.
+   - Export it for use in all services.
+
+2. **Refactor TaskScheduler**
+   - Remove all direct imports of Prisma, notification, and content generation.
+   - Replace direct calls with event emissions.
+   - Example: Instead of calling `sendNotificationToClients`, emit `task.due`.
+
+3. **Implement TaskRepository**
+   - Move all database logic from TaskScheduler to TaskRepository.
+   - Expose a clean interface for the scheduler to use.
+   - Ensure all database access is through this repository.
+
+4. **Implement NotificationService**
+   - Move notification logic from TaskScheduler to NotificationService.
+   - Subscribe to `task.due`, `task.completed`, and other relevant events.
+   - Send notifications as needed.
+
+5. **Implement ContentGenerationService**
+   - Move content generation logic from TaskScheduler to ContentGenerationService.
+   - Subscribe to `task.due` and generate content as needed.
+   - Emit a new event (e.g., `content.generated`) when content is ready.
+
+6. **Wire Up Services in index.ts**
+   - Import and instantiate all services.
+   - Ensure all event subscriptions are set up at startup.
+
+7. **Update Tests**
+   - Refactor tests to mock EventBus instead of direct dependencies.
+   - Test each service in isolation.
+   - Add integration tests for event flows.
+
+8. **Document Event Contracts**
+   - Clearly document the payload and purpose of each event in the EventBus.
+   - Example:
+     - `task.due`: `{ task: Task }`
+     - `content.generated`: `{ taskId: string, content: string }`
+     - `notification.send`: `{ userId: string, message: string }`
+
+--------------------------------------------------------------------------------
+
+Best Practices
+--------------
+- Each service should have a single responsibility.
+- Services should communicate only via events, not direct calls.
+- Keep event payloads well-documented and versioned if needed.
+- Write unit tests for each service and integration tests for event flows.
+- Keep this file updated as you progress through the migration.
+
+--------------------------------------------------------------------------------
+
+*Keep this file up to date as you progress. You can provide it as context for future development or AI assistance.*
