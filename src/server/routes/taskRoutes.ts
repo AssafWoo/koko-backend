@@ -121,6 +121,37 @@ const llmLimiter = rateLimit({
   message: 'Too many requests, please try again later.'
 });
 
+// Add placeholder callLLM function
+async function callLLM(prompt: string): Promise<string> {
+  // Placeholder for your actual LLM call
+  return 'LLM response for: ' + prompt;
+}
+
+// Add Fallback/Graceful Degradation Layer
+interface LLMResponse {
+  content: string;
+  error?: string;
+}
+
+async function callLLMWithFallback(prompt: string): Promise<LLMResponse> {
+  try {
+    const result = await Promise.race<LLMResponse>([
+      // Your actual LLM call here
+      Promise.resolve({ content: `LLM processed: ${prompt}` }),
+      new Promise<LLMResponse>((_, reject) => 
+        setTimeout(() => reject(new Error('LLM request timed out')), 5000)
+      )
+    ]);
+    return result;
+  } catch (error) {
+    console.error('LLM call failed:', error);
+    return {
+      content: 'I apologize, but I am having trouble processing your request right now. Please try again in a moment.',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
 // Apply rate limiter to the POST route
 router.post('/', llmLimiter, async (req, res) => {
   try {
@@ -141,10 +172,14 @@ router.post('/', llmLimiter, async (req, res) => {
       validatedData.type = quickType;
     }
 
+    // Fallback/Graceful Degradation Layer
+    const llmResult = await callLLMWithFallback(validatedData.description);
+    
+    // If there was an error but we have a task type, we can still proceed
     const task = await createTask({
       ...validatedData,
       prompt: validatedData.description,
-      previewResult: validatedData.description,
+      previewResult: llmResult.content,
       schedule: validatedData.schedule || {
         frequency: 'once',
         time: null,
@@ -152,7 +187,16 @@ router.post('/', llmLimiter, async (req, res) => {
         date: null
       }
     }, userId);
-    res.json(task);
+
+    // If there was an LLM error, include it in the response
+    if (llmResult.error) {
+      res.json({
+        task,
+        warning: 'Task created with fallback response due to LLM processing issue'
+      });
+    } else {
+      res.json(task);
+    }
   } catch (error) {
     if (error instanceof Error) {
       res.status(400).json({ error: error.message });
