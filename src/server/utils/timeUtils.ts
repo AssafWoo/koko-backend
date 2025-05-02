@@ -50,14 +50,12 @@ export const isTaskDue = (
     return isDue;
   }
 
-  // For tasks that run every X minutes
+  // For minute-based intervals, check if the current time matches the interval
   if (frequency === 'every_x_minutes' && interval) {
     const minutesSinceLastExecution = lastExecution 
-      ? Math.floor((now.getTime() - new Date(lastExecution).getTime()) / (1000 * 60))
-      : Infinity;
-    const isDue = minutesSinceLastExecution >= interval && 
-                 Math.abs(currentSecondsSinceMidnight % (interval * 60) - scheduledSecondsSinceMidnight % (interval * 60)) <= 30;
-    return isDue;
+      ? Math.floor((now.getTime() - new Date(lastExecution).getTime()) / (60 * 1000))
+      : 0;
+    return minutesSinceLastExecution >= interval;
   }
 
   // For daily tasks, check if it's the right time and hasn't run today

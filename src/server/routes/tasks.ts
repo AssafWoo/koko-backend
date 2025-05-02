@@ -206,6 +206,21 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
         scheduledTime = createDateTime(scheduleTime, scheduleDate);
       }
     }
+    // Handle minute-based intervals
+    else if (lowerPrompt.includes('every') && (lowerPrompt.includes('min') || lowerPrompt.includes('mint'))) {
+      const minutesMatch = lowerPrompt.match(/every\s+(\d+)\s*(?:min|mint)(?:ute)?s?/i);
+      if (minutesMatch) {
+        parsedIntent.taskDefinition.schedule = {
+          ...parsedIntent.taskDefinition.schedule,
+          frequency: 'every_x_minutes',
+          interval: parseInt(minutesMatch[1]),
+          time: currentTime
+        };
+        scheduleTime = currentTime;
+        scheduleDate = formatDate(now);
+        scheduledTime = createDateTime(scheduleTime, scheduleDate);
+      }
+    }
     // Handle "tomorrow" specifically
     else if (lowerPrompt.includes('tomorrow')) {
       const tomorrow = new Date(now);
@@ -283,8 +298,12 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
           ...parsedIntent.taskDefinition.schedule,
           day: parsedIntent.taskDefinition.schedule.day || null,
           date: scheduleDate,
-          time: scheduleTime
-        }
+          time: scheduleTime,
+          interval: parsedIntent.taskDefinition.schedule.interval || null,
+          frequency: parsedIntent.taskDefinition.schedule.frequency || null
+        },
+        status: 'PENDING',
+        lastExecution: null
       }),
       userId: userId,
       scheduledTime: new Date(scheduledTime),
@@ -296,6 +315,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
     };
 
     const task = await taskRepository.createTask(taskData);
+    console.log('Created task with metadata:', task.metadata);
     res.json(task);
   } catch (error) {
     console.error('Error creating task:', error);

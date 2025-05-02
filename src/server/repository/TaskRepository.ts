@@ -62,7 +62,7 @@ export class TaskRepository {
     return this.prisma.task.create({
       data: {
         ...rest,
-        metadata: schedule ? JSON.stringify(schedule) : null,
+        metadata: taskData.metadata,
         user: {
           connect: {
             id: userId

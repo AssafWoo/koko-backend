@@ -7,7 +7,7 @@ import { createNotificationContent, sendNotification } from '../services/notific
 export class TaskScheduler {
   private isRunning: boolean = false;
   private checkInterval: NodeJS.Timeout | null = null;
-  private readonly CHECK_INTERVAL_MS = 60000; // Check every minute
+  private readonly CHECK_INTERVAL_MS = 10000; // Check every 10 seconds for more precise timing
 
   constructor(private taskRepository: TaskRepository) {}
 
@@ -51,6 +51,17 @@ export class TaskScheduler {
       // Get pending tasks
       const pendingTasks = await this.taskRepository.findPendingTasks();
       console.log(`[TaskScheduler] Found ${pendingTasks.length} pending tasks`);
+      
+      // Log details of each pending task
+      for (const task of pendingTasks) {
+        console.log(`[TaskScheduler] Pending task details:`, {
+          id: task.id,
+          description: task.description,
+          scheduledTime: task.scheduledTime,
+          frequency: task.frequency,
+          metadata: task.metadata ? JSON.parse(task.metadata) : null
+        });
+      }
 
       // Process each task
       for (const task of pendingTasks) {
@@ -64,13 +75,16 @@ export class TaskScheduler {
   private async processTask(prismaTask: PrismaTask): Promise<void> {
     try {
       console.log(`[TaskScheduler] Processing task ${prismaTask.id}: ${prismaTask.description}`);
+      console.log(`[TaskScheduler] Current task metadata:`, prismaTask.metadata);
       
       // Convert Prisma task to our Task type
       const task: TaskType = {
         ...prismaTask,
         type: prismaTask.type as TaskType['type'],
-        schedule: prismaTask.metadata ? JSON.parse(prismaTask.metadata) as Schedule : undefined
+        schedule: prismaTask.metadata ? JSON.parse(prismaTask.metadata).schedule : undefined
       };
+      
+      console.log(`[TaskScheduler] Task schedule:`, task.schedule);
       
       // Update task status to processing
       await this.taskRepository.updateTaskStatus(task.id, TaskStatus.PROCESSING);
@@ -109,6 +123,56 @@ export class TaskScheduler {
       // Save task result
       await this.taskRepository.saveTaskResult(task.id, result);
 
+      // For recurring tasks, schedule the next occurrence before marking as completed
+      if (task.schedule?.frequency !== 'once' && task.schedule) {
+        console.log(`[TaskScheduler] Scheduling next occurrence for recurring task ${task.id}`);
+        console.log(`[TaskScheduler] Current task schedule:`, task.schedule);
+        
+        const nextScheduledTime = this.calculateNextScheduledTime(task);
+        console.log(`[TaskScheduler] Calculated next scheduled time: ${nextScheduledTime?.toISOString()}`);
+        
+        if (nextScheduledTime) {
+          // Parse existing metadata
+          const existingMetadata = task.metadata ? JSON.parse(task.metadata) : {};
+          console.log(`[TaskScheduler] Existing metadata:`, existingMetadata);
+          
+          // Create new task with updated metadata
+          const nextTaskData = {
+            description: task.description,
+            type: task.type,
+            userId: task.userId,
+            status: TaskStatus.PENDING,
+            scheduledTime: nextScheduledTime,
+            frequency: task.schedule.frequency,
+            priority: task.priority,
+            lastRunAt: null,
+            lastResult: null,
+            metadata: JSON.stringify({
+              ...existingMetadata,
+              schedule: {
+                frequency: task.schedule.frequency,
+                interval: task.schedule.interval,
+                time: nextScheduledTime.toTimeString().slice(0, 5),
+                date: nextScheduledTime.toISOString().split('T')[0]
+              }
+            })
+          };
+          
+          console.log(`[TaskScheduler] Creating next task with data:`, nextTaskData);
+          
+          const nextTask = await this.taskRepository.createTask(nextTaskData);
+          console.log(`[TaskScheduler] Successfully created next occurrence task:`, {
+            id: nextTask.id,
+            description: nextTask.description,
+            scheduledTime: nextTask.scheduledTime,
+            frequency: nextTask.frequency,
+            metadata: nextTask.metadata
+          });
+        } else {
+          console.log(`[TaskScheduler] Failed to calculate next scheduled time for task ${task.id}`);
+        }
+      }
+
       // Update task status to completed
       await this.taskRepository.updateTaskStatus(task.id, TaskStatus.COMPLETED);
 
@@ -123,11 +187,6 @@ export class TaskScheduler {
       // Emit task completed event
       eventBus.emit(EVENTS.TASK_COMPLETED, taskEvent);
 
-      // Handle recurring tasks
-      if (task.schedule?.frequency !== 'once') {
-        await this.scheduleNextOccurrence(task);
-      }
-
     } catch (error: any) {
       console.error(`[TaskScheduler] Error processing task ${prismaTask.id}:`, error);
 
@@ -139,7 +198,7 @@ export class TaskScheduler {
         {
           ...prismaTask,
           type: prismaTask.type as TaskType['type'],
-          schedule: prismaTask.metadata ? JSON.parse(prismaTask.metadata) as Schedule : undefined
+          schedule: prismaTask.metadata ? JSON.parse(prismaTask.metadata).schedule : undefined
         },
         `Error in task "${prismaTask.description}": ${error?.message || 'Unknown error'}`,
         'error'
@@ -151,7 +210,7 @@ export class TaskScheduler {
         task: {
           ...prismaTask,
           type: prismaTask.type as TaskType['type'],
-          schedule: prismaTask.metadata ? JSON.parse(prismaTask.metadata) as Schedule : undefined
+          schedule: prismaTask.metadata ? JSON.parse(prismaTask.metadata).schedule : undefined
         },
         error: error?.message || 'Unknown error'
       });
@@ -196,57 +255,86 @@ export class TaskScheduler {
   }
 
   private calculateNextScheduledTime(task: TaskType): Date | null {
-    if (!task.schedule) return null;
+    if (!task.schedule) {
+      console.log(`[TaskScheduler] No schedule found for task ${task.id}`);
+      return null;
+    }
 
-    const now = new Date();
-    const { frequency, interval, timesPerDay, timesPerWeek, timesPerMonth, timesPerHour } = task.schedule;
+    const baseTime = task.scheduledTime || new Date();
+    const { frequency, interval } = task.schedule;
+    console.log(`[TaskScheduler] Calculating next time for frequency: ${frequency}, interval: ${interval}`);
 
-    switch (frequency) {
-      case 'daily':
-        return new Date(now.setDate(now.getDate() + 1));
-      
-      case 'weekly':
-        return new Date(now.setDate(now.getDate() + 7));
-      
-      case 'monthly':
-        return new Date(now.setMonth(now.getMonth() + 1));
-      
-      case 'hourly':
-        return new Date(now.setHours(now.getHours() + 1));
-      
-      case 'every_x_minutes':
-        return new Date(now.setMinutes(now.getMinutes() + (interval || 5)));
-      
-      case 'multiple_times':
-        if (timesPerHour) {
-          const minutesBetween = Math.floor(60 / timesPerHour);
-          return new Date(now.setMinutes(now.getMinutes() + minutesBetween));
-        }
-        if (timesPerDay) {
-          const hoursBetween = Math.floor(24 / timesPerDay);
-          return new Date(now.setHours(now.getHours() + hoursBetween));
-        }
-        if (timesPerWeek) {
-          const daysBetween = Math.floor(7 / timesPerWeek);
-          return new Date(now.setDate(now.getDate() + daysBetween));
-        }
-        if (timesPerMonth) {
-          const daysBetween = Math.floor(30 / timesPerMonth);
-          return new Date(now.setDate(now.getDate() + daysBetween));
-        }
-        return null;
-      
-      case 'once':
-        if (task.schedule.date) {
-          const [year, month, day] = task.schedule.date.split('-').map(Number);
-          const time = task.schedule.time || '00:00';
-          const [hours, minutes] = time.split(':').map(Number);
-          return new Date(year, month - 1, day, hours, minutes);
-        }
-        return null;
-      
-      default:
-        return null;
+    try {
+      switch (frequency) {
+        case 'every_x_minutes':
+          if (!interval) {
+            console.log(`[TaskScheduler] No interval specified for every_x_minutes task`);
+            return null;
+          }
+          const nextTime = new Date(baseTime);
+          nextTime.setMinutes(baseTime.getMinutes() + interval);
+          console.log(`[TaskScheduler] Next time for every_x_minutes: ${nextTime.toISOString()}`);
+          return nextTime;
+        
+        case 'daily':
+          const nextDay = new Date(baseTime);
+          nextDay.setDate(baseTime.getDate() + 1);
+          console.log(`[TaskScheduler] Next time for daily: ${nextDay.toISOString()}`);
+          return nextDay;
+        
+        case 'weekly':
+          const nextWeek = new Date(baseTime);
+          nextWeek.setDate(baseTime.getDate() + 7);
+          console.log(`[TaskScheduler] Next time for weekly: ${nextWeek.toISOString()}`);
+          return nextWeek;
+        
+        case 'monthly':
+          const nextMonth = new Date(baseTime);
+          nextMonth.setMonth(baseTime.getMonth() + 1);
+          console.log(`[TaskScheduler] Next time for monthly: ${nextMonth.toISOString()}`);
+          return nextMonth;
+        
+        case 'hourly':
+          const nextHour = new Date(baseTime);
+          nextHour.setHours(baseTime.getHours() + 1);
+          console.log(`[TaskScheduler] Next time for hourly: ${nextHour.toISOString()}`);
+          return nextHour;
+        
+        case 'multiple_times':
+          if (task.schedule.timesPerHour) {
+            const minutesBetween = Math.floor(60 / task.schedule.timesPerHour);
+            return new Date(baseTime.setMinutes(baseTime.getMinutes() + minutesBetween));
+          }
+          if (task.schedule.timesPerDay) {
+            const hoursBetween = Math.floor(24 / task.schedule.timesPerDay);
+            return new Date(baseTime.setHours(baseTime.getHours() + hoursBetween));
+          }
+          if (task.schedule.timesPerWeek) {
+            const daysBetween = Math.floor(7 / task.schedule.timesPerWeek);
+            return new Date(baseTime.setDate(baseTime.getDate() + daysBetween));
+          }
+          if (task.schedule.timesPerMonth) {
+            const daysBetween = Math.floor(30 / task.schedule.timesPerMonth);
+            return new Date(baseTime.setDate(baseTime.getDate() + daysBetween));
+          }
+          return null;
+        
+        case 'once':
+          if (task.schedule.date) {
+            const [year, month, day] = task.schedule.date.split('-').map(Number);
+            const time = task.schedule.time || '00:00';
+            const [hours, minutes] = time.split(':').map(Number);
+            return new Date(year, month - 1, day, hours, minutes);
+          }
+          return null;
+        
+        default:
+          console.log(`[TaskScheduler] Unknown frequency: ${frequency}`);
+          return null;
+      }
+    } catch (error) {
+      console.error(`[TaskScheduler] Error calculating next scheduled time:`, error);
+      return null;
     }
   }
 } 
