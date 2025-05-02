@@ -1,5 +1,5 @@
-import { Task } from '@server/types';
-import { notificationManager } from '@server/services/notificationManager';
+import { Task } from '../types';
+import { notificationManager } from './notificationManager';
 
 export interface NotificationContent {
   title: string;
