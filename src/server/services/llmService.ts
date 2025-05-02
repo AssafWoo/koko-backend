@@ -84,19 +84,19 @@ export async function generateFriendlyMessage(task: Task, result: string): Promi
     let taskTarget = '';
     switch (task.type) {
       case 'reminder':
-        taskTarget = (task.parameters as ReminderParameters)?.target || task.action;
+        taskTarget = (task.parameters as ReminderParameters)?.target || task.description;
         break;
       case 'summary':
-        taskTarget = (task.parameters as SummaryParameters)?.target || task.action;
+        taskTarget = (task.parameters as SummaryParameters)?.target || task.description;
         break;
       case 'fetch':
-        taskTarget = (task.parameters as FetchParameters)?.target || task.action;
+        taskTarget = (task.parameters as FetchParameters)?.target || task.description;
         break;
       case 'learning':
-        taskTarget = (task.parameters as LearningParameters)?.topic || task.action;
+        taskTarget = (task.parameters as LearningParameters)?.topic || task.description;
         break;
       default:
-        taskTarget = task.action;
+        taskTarget = task.description;
     }
 
     const response = await ollama.chat({
