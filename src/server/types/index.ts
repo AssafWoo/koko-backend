@@ -1,9 +1,14 @@
 export interface Schedule {
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous';
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous' | 'multiple_times';
   interval?: number;
   time: string | null;
   day: string | null;
   date: string | null;
+  timesPerDay?: number;
+  timesPerWeek?: number;
+  timesPerMonth?: number;
+  timesPerHour?: number;
+  nextOccurrence?: Date;
 }
 
 export interface LearningSource {

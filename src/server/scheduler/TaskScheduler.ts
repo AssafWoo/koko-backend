@@ -2,7 +2,7 @@ import { eventBus, EVENTS, TaskEvent } from '../events/EventBus';
 import { TaskRepository } from '../repository/TaskRepository';
 import { Task as PrismaTask, TaskStatus } from '@prisma/client';
 import { Task as TaskType, Schedule } from '@server/types';
-import { createNotificationContent, sendNotification } from '@server/services/notificationService';
+import { createNotificationContent, sendNotification } from '../services/notificationService';
 
 export class TaskScheduler {
   private isRunning: boolean = false;
@@ -199,19 +199,52 @@ export class TaskScheduler {
     if (!task.schedule) return null;
 
     const now = new Date();
-    const { frequency, interval } = task.schedule;
+    const { frequency, interval, timesPerDay, timesPerWeek, timesPerMonth, timesPerHour } = task.schedule;
 
     switch (frequency) {
       case 'daily':
         return new Date(now.setDate(now.getDate() + 1));
+      
       case 'weekly':
         return new Date(now.setDate(now.getDate() + 7));
+      
       case 'monthly':
         return new Date(now.setMonth(now.getMonth() + 1));
+      
       case 'hourly':
         return new Date(now.setHours(now.getHours() + 1));
+      
       case 'every_x_minutes':
         return new Date(now.setMinutes(now.getMinutes() + (interval || 5)));
+      
+      case 'multiple_times':
+        if (timesPerHour) {
+          const minutesBetween = Math.floor(60 / timesPerHour);
+          return new Date(now.setMinutes(now.getMinutes() + minutesBetween));
+        }
+        if (timesPerDay) {
+          const hoursBetween = Math.floor(24 / timesPerDay);
+          return new Date(now.setHours(now.getHours() + hoursBetween));
+        }
+        if (timesPerWeek) {
+          const daysBetween = Math.floor(7 / timesPerWeek);
+          return new Date(now.setDate(now.getDate() + daysBetween));
+        }
+        if (timesPerMonth) {
+          const daysBetween = Math.floor(30 / timesPerMonth);
+          return new Date(now.setDate(now.getDate() + daysBetween));
+        }
+        return null;
+      
+      case 'once':
+        if (task.schedule.date) {
+          const [year, month, day] = task.schedule.date.split('-').map(Number);
+          const time = task.schedule.time || '00:00';
+          const [hours, minutes] = time.split(':').map(Number);
+          return new Date(year, month - 1, day, hours, minutes);
+        }
+        return null;
+      
       default:
         return null;
     }

@@ -1,6 +1,6 @@
 import { Ollama } from 'ollama';
 import { intentPrompt } from '@server/prompts/intentPrompt';
-import { Task, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters } from '@server/types';
+import { Task, ReminderParameters, SummaryParameters, FetchParameters, LearningParameters, Schedule } from '@server/types';
 
 const ollama = new Ollama();
 
@@ -9,16 +9,20 @@ export interface TaskIntent {
     type: Task['type'];
     source: string | null;
     schedule: {
-      frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes';
+      frequency: Schedule['frequency'];
       interval?: number;
       time: string;
       day?: string;
       date?: string;
+      timesPerDay?: number;
+      timesPerWeek?: number;
+      timesPerMonth?: number;
+      timesPerHour?: number;
     };
     action: string;
     parameters: ReminderParameters | SummaryParameters | FetchParameters | LearningParameters;
     description: string;
-    deliveryMethod: Task['deliveryMethod'];
+    deliveryMethod?: 'in-app' | 'email' | 'slack';
   };
 }
 

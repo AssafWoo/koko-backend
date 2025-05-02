@@ -149,45 +149,83 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
       scheduleDate = formatDate(now);
       scheduledTime = createDateTime(scheduleTime, scheduleDate);
     }
-    // Handle weekly schedules with specific days
-    else if (parsedIntent.taskDefinition.schedule.frequency === 'weekly' && parsedIntent.taskDefinition.schedule.day) {
-      const dayMap: { [key: string]: number } = {
-        'sunday': 0,
-        'monday': 1,
-        'tuesday': 2,
-        'wednesday': 3,
-        'thursday': 4,
-        'friday': 5,
-        'saturday': 6
-      };
-      
-      const dayName = parsedIntent.taskDefinition.schedule.day.toLowerCase();
-      const dayNumber = dayMap[dayName];
-      
-      if (dayNumber !== undefined) {
-        parsedIntent.taskDefinition.schedule.day = dayNumber.toString();
-        scheduleTime = parsedIntent.taskDefinition.schedule.time;
+    // Handle multiple times per period
+    else if (lowerPrompt.includes('times a day') || lowerPrompt.includes('times per day')) {
+      const timesMatch = lowerPrompt.match(/(\d+)\s*times?\s*a\s*day/);
+      if (timesMatch) {
+        parsedIntent.taskDefinition.schedule = {
+          ...parsedIntent.taskDefinition.schedule,
+          frequency: 'multiple_times',
+          timesPerDay: parseInt(timesMatch[1]),
+          time: currentTime
+        };
+        scheduleTime = currentTime;
         scheduleDate = formatDate(now);
         scheduledTime = createDateTime(scheduleTime, scheduleDate);
       }
     }
-    // Check for time-of-day keywords
-    else if (timeOfDayTime) {
-      console.log('Converting time-of-day to specific time:', {
-        prompt,
-        timeOfDayTime
-      });
-      scheduleTime = timeOfDayTime;
-      scheduleDate = formatDate(now);
-      scheduledTime = createDateTime(timeOfDayTime, scheduleDate);
+    else if (lowerPrompt.includes('times a week') || lowerPrompt.includes('times per week')) {
+      const timesMatch = lowerPrompt.match(/(\d+)\s*times?\s*a\s*week/);
+      if (timesMatch) {
+        parsedIntent.taskDefinition.schedule = {
+          ...parsedIntent.taskDefinition.schedule,
+          frequency: 'multiple_times',
+          timesPerWeek: parseInt(timesMatch[1]),
+          time: currentTime
+        };
+        scheduleTime = currentTime;
+        scheduleDate = formatDate(now);
+        scheduledTime = createDateTime(scheduleTime, scheduleDate);
+      }
     }
-    // If no time-of-day match, check for relative time
+    else if (lowerPrompt.includes('times a month') || lowerPrompt.includes('times per month')) {
+      const timesMatch = lowerPrompt.match(/(\d+)\s*times?\s*a\s*month/);
+      if (timesMatch) {
+        parsedIntent.taskDefinition.schedule = {
+          ...parsedIntent.taskDefinition.schedule,
+          frequency: 'multiple_times',
+          timesPerMonth: parseInt(timesMatch[1]),
+          time: currentTime
+        };
+        scheduleTime = currentTime;
+        scheduleDate = formatDate(now);
+        scheduledTime = createDateTime(scheduleTime, scheduleDate);
+      }
+    }
+    else if (lowerPrompt.includes('times an hour') || lowerPrompt.includes('times per hour')) {
+      const timesMatch = lowerPrompt.match(/(\d+)\s*times?\s*an?\s*hour/);
+      if (timesMatch) {
+        parsedIntent.taskDefinition.schedule = {
+          ...parsedIntent.taskDefinition.schedule,
+          frequency: 'multiple_times',
+          timesPerHour: parseInt(timesMatch[1]),
+          time: currentTime
+        };
+        scheduleTime = currentTime;
+        scheduleDate = formatDate(now);
+        scheduledTime = createDateTime(scheduleTime, scheduleDate);
+      }
+    }
+    // Handle "tomorrow" specifically
+    else if (lowerPrompt.includes('tomorrow')) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      parsedIntent.taskDefinition.schedule = {
+        ...parsedIntent.taskDefinition.schedule,
+        frequency: 'once',
+        time: currentTime,
+        date: formatDate(tomorrow)
+      };
+      scheduleTime = currentTime;
+      scheduleDate = formatDate(tomorrow);
+      scheduledTime = createDateTime(scheduleTime, scheduleDate);
+    }
+    // Handle relative time (in X minutes/hours)
     else if (prompt.toLowerCase().includes('in ') && 
             (prompt.toLowerCase().includes('min') || 
              prompt.toLowerCase().includes('hour') ||
              prompt.toLowerCase().includes('half an hour'))) {
-      // Use the utility function for relative time
-      const calculatedTime: RelativeTimeResult = calculateRelativeTime(currentTime, prompt);
+      const calculatedTime = calculateRelativeTime(currentTime, prompt);
       scheduleTime = calculatedTime.time;
       scheduleDate = calculatedTime.date;
       scheduledTime = createDateTime(calculatedTime.time, calculatedTime.date);
@@ -197,11 +235,6 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
         date: calculatedTime.date,
         frequency: 'once'
       };
-      console.log('Adjusted time for relative schedule:', {
-        originalTime: currentTime,
-        calculatedTime,
-        prompt
-      });
     }
 
     if (!scheduledTime || !scheduleTime || !scheduleDate) {

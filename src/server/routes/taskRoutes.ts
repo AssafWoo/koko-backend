@@ -21,44 +21,22 @@ const taskInputSchema = z.object({
   type: z.enum(['reminder', 'summary', 'fetch', 'learning']),
   source: z.string().nullable(),
   schedule: z.object({
-    frequency: z.enum(['once', 'daily', 'weekly', 'monthly', 'hourly', 'every_x_minutes', 'continuous']),
+    frequency: z.enum(['once', 'daily', 'weekly', 'monthly', 'hourly', 'every_x_minutes', 'continuous', 'multiple_times']),
     time: z.string().nullable(),
     day: z.string().nullable(),
     date: z.string().nullable(),
-    interval: z.number().optional()
+    interval: z.number().optional(),
+    timesPerDay: z.number().optional(),
+    timesPerWeek: z.number().optional(),
+    timesPerMonth: z.number().optional(),
+    timesPerHour: z.number().optional()
   }).nullable(),
   action: z.string(),
-  parameters: z.union([
-    z.object({
-      type: z.literal('reminder'),
-      target: z.string(),
-      priority: z.enum(['low', 'medium', 'high']).optional()
-    }),
-    z.object({
-      type: z.literal('summary'),
-      target: z.string(),
-      source: z.string().optional(),
-      format: z.enum(['short', 'detailed']).optional()
-    }),
-    z.object({
-      type: z.literal('fetch'),
-      target: z.string(),
-      url: z.string().url(),
-      selector: z.string()
-    }),
-    z.object({
-      type: z.literal('learning'),
-      topic: z.string(),
-      format: z.enum(['article_link', 'summary', 'facts']),
-      content_types: z.array(z.string()),
-      difficulty: z.enum(['beginner', 'intermediate', 'advanced']),
-      sources: z.array(learningSourceSchema),
-      summary_length: z.enum(['short', 'medium', 'detailed']).optional(),
-      include_links: z.boolean().optional()
-    })
-  ]),
+  parameters: z.record(z.any()),
   description: z.string(),
-  deliveryMethod: z.enum(['in-app', 'email', 'slack']).optional()
+  deliveryMethod: z.enum(['in-app', 'email', 'slack']).optional(),
+  prompt: z.string(),
+  previewResult: z.string()
 });
 
 const taskUpdateSchema = z.object({

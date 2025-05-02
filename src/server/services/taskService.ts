@@ -1,15 +1,9 @@
-import { Task, TaskType } from '@server/types';
+import { Task, TaskType, Schedule } from '@server/types';
 
 export async function createTask(taskData: {
   type: TaskType;
   source: string | null;
-  schedule: {
-    frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'hourly' | 'every_x_minutes' | 'continuous';
-    time: string | null;
-    day: string | null;
-    date: string | null;
-    interval?: number;
-  } | null;
+  schedule: Schedule | null;
   action: string;
   parameters: any;
   description: string;
@@ -22,6 +16,7 @@ export async function createTask(taskData: {
     id: Math.random().toString(36).substr(2, 9),
     userId,
     ...taskData,
+    schedule: taskData.schedule || undefined,
     metadata: null,
     createdAt: now,
     updatedAt: now,
