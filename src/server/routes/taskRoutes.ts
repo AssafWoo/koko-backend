@@ -243,6 +243,14 @@ router.post('/', llmLimiter, async (req: Request, res: Response): Promise<void> 
         }
       }, userId);
 
+      // Send notification for task creation
+      try {
+        const notification = createNotificationContent(task, 'New task created', 'info');
+        await sendNotification('taskCreated', notification);
+      } catch (notificationError) {
+        console.error('Failed to send task creation notification:', notificationError);
+      }
+
       res.json({
         task,
         preFiltered: true,
@@ -305,8 +313,13 @@ router.post('/:id/run', async (req, res) => {
     }
     
     // Send notification about task completion
-    const notification = createNotificationContent(result, 'Task completed successfully', 'success');
-    await sendNotification('taskCompleted', notification);
+    try {
+      const notification = createNotificationContent(result, 'Task completed successfully', 'success');
+      await sendNotification('taskCompleted', notification);
+      console.log('[TaskRoutes] Sent task completion notification');
+    } catch (notificationError) {
+      console.error('[TaskRoutes] Failed to send task completion notification:', notificationError);
+    }
     
     res.json(result);
   } catch (error) {

@@ -23,6 +23,12 @@ const LLM_CONFIGS = {
     num_ctx: 2048,
     num_thread: 4
   },
+  learning: {
+    model: 'llama3:8b',
+    temperature: 0.8,
+    num_ctx: 4096,
+    num_thread: 4
+  },
   friendly: {
     model: 'llama3:8b',
     temperature: 0.8,
@@ -84,7 +90,7 @@ export class LLMTaskRouter {
       case 'summary':
         return LLM_CONFIGS.summary;
       case 'learning':
-        return LLM_CONFIGS.content;
+        return LLM_CONFIGS.learning;
       default:
         return LLM_CONFIGS.content;
     }
@@ -99,7 +105,16 @@ export class LLMTaskRouter {
       case 'fetch':
         return 'You are a data fetcher. Extract and organize relevant information.';
       case 'learning':
-        return 'You are an educational content generator. Create engaging, informative content.';
+        return `You are an expert educator creating engaging, informative content.
+Your goal is to make the content interesting, easy to understand, and memorable.
+Format the content as a lesson with:
+1. A brief introduction
+2. Key points or facts
+3. A real-world example or analogy
+4. A fun fact or interesting tidbit
+5. A thought-provoking question to encourage further learning
+
+Make it feel like a personal conversation with the student.`;
       default:
         return 'You are a helpful assistant.';
     }

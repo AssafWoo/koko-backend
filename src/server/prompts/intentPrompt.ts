@@ -15,10 +15,9 @@ Time Rules:
 - Use 24-hour format (HH:mm)
 
 Frequency Rules:
-- "every day" or "daily" → frequency: "daily"
-- "every week" or "weekly" → frequency: "weekly"
-- "every month" or "monthly" → frequency: "monthly"
-- "every hour" or "hourly" → frequency: "hourly"
+- "every week", "weekly", "once a week" → frequency: "weekly"
+- "every day", "daily", "once a day", "everyday" → frequency: "daily"
+- "every hour", "hourly", "once an hour" → frequency: "hourly"
 - "every X minutes" → frequency: "every_x_minutes", interval: X
 - "every [day of week]" (e.g., "every monday") → frequency: "weekly", day: [day]
 - "every [time of day]" (e.g., "every morning") → frequency: "daily", time: [time]
@@ -86,7 +85,7 @@ Examples:
   }
 }
 
-2. "remind me to drink water every morning" →
+2. "remind me to drink water everyday" →
 {
   "taskDefinition": {
     "type": "reminder",
@@ -115,7 +114,26 @@ Examples:
   }
 }
 
-3. "remind me to exercise every monday at 9am" →
+3. "check my emails every hour" →
+{
+  "taskDefinition": {
+    "type": "fetch",
+    "schedule": {
+      "frequency": "hourly",
+      "time": null,
+      "day": null,
+      "date": null
+    },
+    "action": "fetch",
+    "parameters": {
+      "target": "emails"
+    },
+    "description": "Check emails every hour",
+    "deliveryMethod": "in-app"
+  }
+}
+
+4. "remind me to exercise every monday at 9am" →
 {
   "taskDefinition": {
     "type": "reminder",
@@ -130,24 +148,6 @@ Examples:
       "priority": "medium"
     },
     "description": "Weekly exercise reminder",
-    "deliveryMethod": "in-app"
-  }
-}
-
-4. "check my emails every 30 minutes" →
-{
-  "taskDefinition": {
-    "type": "fetch",
-    "schedule": {
-      "frequency": "every_x_minutes",
-      "interval": 30,
-      "time": null
-    },
-    "action": "fetch",
-    "parameters": {
-      "target": "emails"
-    },
-    "description": "Check emails every 30 minutes",
     "deliveryMethod": "in-app"
   }
 }

@@ -1,82 +1,78 @@
-import { Task, NotificationContent } from '@server/types';
+import { Task } from '@server/types';
+import { notificationManager } from '@server/services/notificationManager';
 
-export function createNotificationContent(
-  task: Task,
-  message?: string,
-  type: 'info' | 'success' | 'warning' | 'error' = 'info'
-): NotificationContent {
-  const now = new Date();
-  const baseContent: NotificationContent = {
-    title: '',
-    message: message || '',
+export interface NotificationContent {
+  title: string;
+  message: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  metadata?: {
+    taskId: string;
+    taskType: string;
+    timestamp: string;
+    formattedDateTime?: string;
+    [key: string]: any;
+  };
+}
+
+function formatDateTime(date: Date): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+export function createNotificationContent(task: Task, message: string, type: 'success' | 'error' | 'info' | 'warning'): NotificationContent {
+  console.log('[NotificationService] Creating notification content for task:', task.id);
+  const scheduledTime = new Date(task.scheduledTime);
+  const formattedDateTime = formatDateTime(scheduledTime);
+
+  const content = {
+    title: `Task ${task.description}`,
+    message: `${message}\nDue: ${formattedDateTime}`,
     type,
     metadata: {
       taskId: task.id,
       taskType: task.type,
-      timestamp: now.toISOString()
+      timestamp: new Date().toISOString(),
+      taskDescription: task.description,
+      formattedDateTime
     }
   };
 
-  switch (task.type) {
-    case 'reminder':
-      return {
-        ...baseContent,
-        title: '⏰ Reminder',
-        message: message || `Time for: ${task.description}`,
-        icon: '⏰',
-        actions: [{
-          label: 'Mark as Done',
-          callback: 'markAsDone'
-        }]
-      };
-    
-    case 'fetch':
-      return {
-        ...baseContent,
-        title: '🔍 Content Fetch',
-        message: message || `Fetched: ${task.description}`,
-        icon: '🔍',
-        actions: [{
-          label: 'View Details',
-          callback: 'showFetchResults'
-        }]
-      };
-    
-    case 'summary':
-      return {
-        ...baseContent,
-        title: '📝 Summary',
-        message: message || `Summary: ${task.description}`,
-        icon: '📝',
-        actions: [{
-          label: 'View Summary',
-          callback: 'showFullSummary'
-        }]
-      };
-    
-    case 'learning':
-      return {
-        ...baseContent,
-        title: '🧠 Learning Update',
-        message: message || `Learning: ${task.description}`,
-        icon: '🧠',
-        actions: [{
-          label: 'View Content',
-          callback: 'showLearningContent'
-        }]
-      };
-    
-    default:
-      return {
-        ...baseContent,
-        title: '🔔 Task Update',
-        message: message || task.description
-      };
-  }
+  console.log('[NotificationService] Created notification content:', content);
+  return content;
 }
 
-export async function sendNotification(type: string, data: any) {
-  // This is a placeholder for actual notification sending logic
-  // In a real implementation, this would send notifications to connected clients
-  console.log(`Notification: ${type}`, data);
+export async function sendNotification(type: string, content: NotificationContent): Promise<void> {
+  console.log(`[NotificationService] Attempting to send ${type} notification:`, content);
+  
+  try {
+    // Send notification through EventStream
+    const notificationPayload = {
+      type,
+      content: content
+    };
+    
+    console.log('[NotificationService] Sending notification payload:', notificationPayload);
+    const payloadString = JSON.stringify(notificationPayload);
+    console.log('[NotificationService] Serialized payload:', payloadString);
+    
+    notificationManager.sendNotification(payloadString);
+    console.log('[NotificationService] Notification sent successfully');
+
+    // For development logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[NotificationService] DEV: Sent ${type} notification to EventStream for task ${content.metadata?.taskId}`);
+      console.log(`[NotificationService] DEV: Active clients: ${notificationManager.getClientCount()}`);
+      console.log(`[NotificationService] DEV: Notification type: ${type}`);
+      console.log(`[NotificationService] DEV: Full notification content:`, content);
+    }
+  } catch (error) {
+    console.error('[NotificationService] Failed to send notification:', error);
+    // Don't throw the error as we don't want notification failures to break the task execution
+    // But we should log it for monitoring
+  }
 } 

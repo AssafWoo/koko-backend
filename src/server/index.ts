@@ -3,9 +3,12 @@ import cors from 'cors';
 import taskRoutes from './routes/tasks';
 import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notificationRoutes';
-import { startTaskScheduler } from './services/taskScheduler';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
+import { TaskScheduler } from './scheduler/TaskScheduler';
+import { TaskRepository } from './repository/TaskRepository';
+import { NotificationService } from './notifications/NotificationService';
+import { ContentGenerationService } from './content/ContentGenerationService';
 
 dotenv.config();
 
@@ -34,8 +37,17 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// Start task scheduler
-startTaskScheduler();
+// Initialize services
+const taskRepository = new TaskRepository(prisma);
+const taskScheduler = new TaskScheduler(taskRepository);
+const notificationService = new NotificationService(prisma);
+const contentGenerationService = new ContentGenerationService(prisma);
+
+// Start the task scheduler
+taskScheduler.start().catch(error => {
+  console.error('Failed to start task scheduler:', error);
+  process.exit(1);
+});
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -68,8 +80,16 @@ app.listen(port, () => {
 });
 
 // Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM. Shutting down gracefully...');
+  taskScheduler.stop();
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
 process.on('SIGINT', async () => {
-  console.log('Shutting down server...');
+  console.log('Received SIGINT. Shutting down gracefully...');
+  taskScheduler.stop();
   await prisma.$disconnect();
   process.exit(0);
 }); 

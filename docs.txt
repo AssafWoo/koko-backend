@@ -1,0 +1,177 @@
+# API Documentation
+
+## Authentication Routes
+
+### POST /api/auth/login
+Authenticates a user and returns a JWT token.
+
+**Request Body:**
+```json
+{
+  "username": "string",
+  "password": "string"
+}
+```
+
+**Response:**
+- Success (200):
+```json
+{
+  "token": "string" // JWT token
+}
+```
+- Error (401): Invalid credentials
+- Error (500): Internal server error
+
+### POST /api/auth/verify
+Verifies if a JWT token is valid.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Response:**
+- Success (200):
+```json
+{
+  "valid": true,
+  "user": {
+    "id": "string",
+    "username": "string"
+  }
+}
+```
+- Error (401): No token provided or user not found
+- Error (403): Invalid or expired token
+- Error (500): Internal server error
+
+## Task Routes
+
+### GET /api/tasks
+Retrieves all tasks for the authenticated user.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Response:**
+- Success (200): Array of tasks
+- Error (401): Invalid user ID
+- Error (500): Internal server error
+
+### POST /api/tasks
+Creates a new task.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Request Body:**
+```json
+{
+  "description": "string",
+  "schedule": {
+    "frequency": "once" | "daily" | "weekly" | "monthly",
+    "time": "string",
+    "day": "string",
+    "date": "string"
+  }
+}
+```
+
+**Response:**
+- Success (200): Created task object
+- Error (401): User not authenticated
+- Error (400): Invalid request data
+- Error (500): Internal server error
+
+### PUT /api/tasks/:id
+Updates an existing task.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Request Body:**
+```json
+{
+  "description": "string",
+  "schedule": {
+    "frequency": "once" | "daily" | "weekly" | "monthly",
+    "time": "string",
+    "day": "string",
+    "date": "string"
+  }
+}
+```
+
+**Response:**
+- Success (200): Updated task object
+- Error (401): User not authenticated
+- Error (404): Task not found
+- Error (400): Invalid request data
+- Error (500): Internal server error
+
+### POST /api/tasks/:id/run
+Executes a specific task.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Response:**
+- Success (200): Task execution result
+- Error (401): User not authenticated
+- Error (404): Task not found
+- Error (500): Internal server error
+
+### DELETE /api/tasks/:id
+Deletes a specific task.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Response:**
+- Success (204): No content
+- Error (401): User not authenticated
+- Error (404): Task not found
+- Error (500): Internal server error
+
+### POST /api/tasks/intent
+Extracts task intent from a prompt.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Request Body:**
+```json
+{
+  "prompt": "string"
+}
+```
+
+**Response:**
+- Success (200): Parsed task intent
+- Error (400): Prompt is required
+- Error (500): Internal server error
+
+## Notification Routes
+
+### GET /api/notifications
+Establishes a Server-Sent Events (SSE) connection for real-time notifications.
+
+**Headers:**
+- Authorization: Bearer <token>
+
+**Response:**
+- Server-Sent Events stream with the following event types:
+  - connection: Initial connection message
+  - heartbeat: Periodic connection keep-alive
+  - taskCompleted: Task completion notification
+  - Other custom notification events
+
+**Event Format:**
+```json
+{
+  "type": "string",
+  "message": "string",
+  "timestamp": "string" // ISO date string
+}
+```
+
+**Note:** The connection will remain open and receive real-time updates. A heartbeat is sent every 30 seconds to keep the connection alive.

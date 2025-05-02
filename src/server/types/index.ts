@@ -62,25 +62,26 @@ export type TaskType = 'reminder' | 'summary' | 'fetch' | 'learning';
 
 export interface Task {
   id: string;
-  createdAt: string;
-  updatedAt: string;
-  prompt: string;
-  type: TaskType;
-  source: string | null;
-  schedule: Schedule | null;
-  action: string;
-  parameters: ReminderParameters | SummaryParameters | FetchParameters | LearningParameters;
-  previewResult: string;
-  deliveryMethod: 'in-app' | 'email' | 'slack';
   description: string;
-  logs: Array<{
-    timestamp: string;
-    message: string;
-  }>;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'recurring';
-  lastExecution: string | null;
-  nextExecution: string | null;
-  isActive: boolean;
+  type: TaskType;
+  metadata: string | null;
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
+  scheduledTime: Date;
+  frequency: string | null;
+  lastRunAt: Date | null;
+  lastResult: string | null;
+  priority: number;
+  schedule?: Schedule;
+  user?: {
+    id: string;
+    username: string;
+    email: string;
+    name: string | null;
+  };
+  parameters?: Record<string, any>;
 }
 
 export interface ChatRequest {
