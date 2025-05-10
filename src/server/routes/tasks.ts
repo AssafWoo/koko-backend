@@ -67,6 +67,44 @@ const createDateTime = (time: string, date: string): Date => {
   return dateTime;
 };
 
+// Helper function to get date for 'this' or 'next' day reference
+const getDayReferenceDate = (dayName: string, reference: 'this' | 'next'): Date => {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const targetDay = days.indexOf(dayName.toLowerCase());
+  if (targetDay === -1) return new Date();
+
+  const now = new Date();
+  const currentDay = now.getDay();
+  let daysToAdd = targetDay - currentDay;
+  
+  if (reference === 'next') {
+    daysToAdd = daysToAdd <= 0 ? daysToAdd + 7 : daysToAdd;
+  } else if (reference === 'this') {
+    daysToAdd = daysToAdd < 0 ? daysToAdd + 7 : daysToAdd;
+  }
+
+  const targetDate = new Date(now);
+  targetDate.setDate(now.getDate() + daysToAdd);
+  return targetDate;
+};
+
+// Helper function to check for day references in prompt
+const extractDayReference = (prompt: string): { day: string | null; reference: 'this' | 'next' | null } => {
+  const lowerPrompt = prompt.toLowerCase();
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  
+  for (const day of days) {
+    if (lowerPrompt.includes(`this ${day}`)) {
+      return { day, reference: 'this' };
+    }
+    if (lowerPrompt.includes(`next ${day}`)) {
+      return { day, reference: 'next' };
+    }
+  }
+  
+  return { day: null, reference: null };
+};
+
 // Get all tasks for the authenticated user
 router.get('/', authenticateToken, (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -127,6 +165,20 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
     // Check for time-of-day keywords first
     const timeOfDayTime = convertTimeOfDayToTime(prompt);
 
+    // Check for day references (this/next day)
+    const dayReference = extractDayReference(prompt);
+    if (dayReference.day && dayReference.reference) {
+      const targetDate = getDayReferenceDate(dayReference.day, dayReference.reference);
+      scheduleDate = formatDate(targetDate);
+      scheduleTime = timeOfDayTime || currentTime;
+      scheduledTime = createDateTime(scheduleTime, scheduleDate);
+      parsedIntent.taskDefinition.schedule = {
+        ...parsedIntent.taskDefinition.schedule,
+        frequency: 'once',
+        time: scheduleTime,
+        date: scheduleDate
+      };
+    }
     // Handle common time expressions
     const lowerPrompt = prompt.toLowerCase();
     if (lowerPrompt.includes('every week') || lowerPrompt.includes('weekly') || lowerPrompt.includes('once a week')) {
