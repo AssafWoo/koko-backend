@@ -53,6 +53,11 @@ export class LLMTaskRouter {
   }
 
   async processTask(task: Task, prompt: string): Promise<string> {
+    // Check for invalid task status
+    if (task.status === 'ERROR') {
+      return `Error: Task "${task.description}" is in an error state. Please check the task configuration and try again.`;
+    }
+
     const config = this.getConfigForTask(task.type);
     
     try {
@@ -78,7 +83,7 @@ export class LLMTaskRouter {
       return response.message.content;
     } catch (error) {
       console.error(`Error processing task with ${task.type} LLM:`, error);
-      throw error;
+      return `Error: Failed to process task "${task.description}". ${error instanceof Error ? error.message : 'Unknown error occurred.'}`;
     }
   }
 

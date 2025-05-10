@@ -15,6 +15,9 @@ interface ExtendedTask extends Task {
   status: TaskStatus;
   scheduledTime: Date;
   priority: number;
+  frequency: string | null;
+  lastRunAt: Date | null;
+  lastResult: string | null;
 }
 
 jest.mock('../../src/server/events/EventBus');
@@ -47,7 +50,10 @@ describe('NotificationService', () => {
         status: TaskStatus.PENDING,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       const user = {
@@ -77,7 +83,10 @@ describe('NotificationService', () => {
         status: TaskStatus.PENDING,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       mockPrisma.user.findUnique.mockResolvedValue(null);
@@ -101,7 +110,10 @@ describe('NotificationService', () => {
         status: TaskStatus.COMPLETED,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       const user = {
@@ -133,7 +145,10 @@ describe('NotificationService', () => {
         status: TaskStatus.ERROR,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       const user = {

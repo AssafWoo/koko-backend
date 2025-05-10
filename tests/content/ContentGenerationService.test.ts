@@ -15,6 +15,9 @@ interface ExtendedTask extends Task {
   status: TaskStatus;
   scheduledTime: Date;
   priority: number;
+  frequency: string | null;
+  lastRunAt: Date | null;
+  lastResult: string | null;
 }
 
 jest.mock('../../src/server/events/EventBus');
@@ -43,7 +46,10 @@ describe('ContentGenerationService', () => {
         status: TaskStatus.PENDING,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       // Simulate task due event
@@ -66,7 +72,10 @@ describe('ContentGenerationService', () => {
         status: TaskStatus.PENDING,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       // Simulate task due event
@@ -89,7 +98,10 @@ describe('ContentGenerationService', () => {
         status: TaskStatus.PENDING,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       // Simulate task due event
@@ -109,7 +121,10 @@ describe('ContentGenerationService', () => {
         status: TaskStatus.PENDING,
         scheduledTime: new Date(),
         priority: 0,
-        metadata: null
+        metadata: null,
+        frequency: null,
+        lastRunAt: null,
+        lastResult: null
       };
 
       // Mock generateContent to throw an error
