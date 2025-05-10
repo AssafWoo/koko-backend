@@ -303,19 +303,27 @@ export class TaskScheduler {
         case 'multiple_times':
           if (task.schedule.timesPerHour) {
             const minutesBetween = Math.floor(60 / task.schedule.timesPerHour);
-            return new Date(baseTime.setMinutes(baseTime.getMinutes() + minutesBetween));
+            const nextTime = new Date(baseTime);
+            nextTime.setMinutes(baseTime.getMinutes() + minutesBetween);
+            return nextTime;
           }
           if (task.schedule.timesPerDay) {
             const hoursBetween = Math.floor(24 / task.schedule.timesPerDay);
-            return new Date(baseTime.setHours(baseTime.getHours() + hoursBetween));
+            const nextTime = new Date(baseTime);
+            nextTime.setHours(baseTime.getHours() + hoursBetween);
+            return nextTime;
           }
           if (task.schedule.timesPerWeek) {
             const daysBetween = Math.floor(7 / task.schedule.timesPerWeek);
-            return new Date(baseTime.setDate(baseTime.getDate() + daysBetween));
+            const nextTime = new Date(baseTime);
+            nextTime.setDate(baseTime.getDate() + daysBetween);
+            return nextTime;
           }
           if (task.schedule.timesPerMonth) {
             const daysBetween = Math.floor(30 / task.schedule.timesPerMonth);
-            return new Date(baseTime.setDate(baseTime.getDate() + daysBetween));
+            const nextTime = new Date(baseTime);
+            nextTime.setDate(baseTime.getDate() + daysBetween);
+            return nextTime;
           }
           return null;
         

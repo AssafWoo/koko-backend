@@ -166,7 +166,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
       return;
     }
 
-    // Get current time in HH:mm format
+    // Calculate current time once at the start
     const now = new Date();
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -345,7 +345,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
     }
 
     // Process the task with the appropriate LLM only if needed
-    const tempTask: AppTask = {
+    const taskContent = requiresLLM ? await llmRouter.processTask({
       id: crypto.randomUUID(),
       description: parsedIntent.taskDefinition.description,
       type: parsedIntent.taskDefinition.type,
@@ -359,7 +359,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
         },
         action: parsedIntent.taskDefinition.action,
         parameters: parsedIntent.taskDefinition.parameters,
-        previewResult: requiresLLM ? '' : prompt, // Only use prompt as preview if no LLM needed
+        previewResult: requiresLLM ? '' : prompt,
         deliveryMethod: 'in-app'
       }),
       userId: userId,
@@ -371,12 +371,10 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
       lastRunAt: null,
       lastResult: null,
       priority: 0
-    };
+    }, prompt) : prompt;
 
-    const taskContent = requiresLLM ? await llmRouter.processTask(tempTask, prompt) : prompt;
-
-    // Create the task in the database
-    const taskData = {
+    // Create the task in the database with a single object
+    const task = await taskRepository.createTask({
       description: parsedIntent.taskDefinition.description,
       type: parsedIntent.taskDefinition.type,
       metadata: JSON.stringify({
@@ -400,9 +398,8 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
       status: TaskStatus.PENDING,
       lastRunAt: null,
       lastResult: null
-    };
+    });
 
-    const task = await taskRepository.createTask(taskData);
     console.log('Created task with metadata:', task.metadata);
     res.json(task);
   } catch (error) {
