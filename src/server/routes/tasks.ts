@@ -105,6 +105,20 @@ const extractDayReference = (prompt: string): { day: string | null; reference: '
   return { day: null, reference: null };
 };
 
+// Helper function to check for specific day of week in prompt
+const extractDayOfWeek = (prompt: string): string | null => {
+  const lowerPrompt = prompt.toLowerCase();
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  
+  for (const day of days) {
+    if (lowerPrompt.includes(day)) {
+      return day;
+    }
+  }
+  
+  return null;
+};
+
 // Get all tasks for the authenticated user
 router.get('/', authenticateToken, (async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -164,6 +178,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
 
     // Check for time-of-day keywords first
     const timeOfDayTime = convertTimeOfDayToTime(prompt);
+    const lowerPrompt = prompt.toLowerCase();
 
     // Check for day references (this/next day)
     const dayReference = extractDayReference(prompt);
@@ -179,9 +194,25 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
         date: scheduleDate
       };
     }
+    // Handle weekly recurring tasks with specific day
+    else if (lowerPrompt.includes('every') && lowerPrompt.includes('week')) {
+      const dayOfWeek = extractDayOfWeek(prompt);
+      if (dayOfWeek) {
+        const targetDate = getDayReferenceDate(dayOfWeek, 'this');
+        scheduleDate = formatDate(targetDate);
+        scheduleTime = timeOfDayTime || currentTime;
+        scheduledTime = createDateTime(scheduleTime, scheduleDate);
+        parsedIntent.taskDefinition.schedule = {
+          ...parsedIntent.taskDefinition.schedule,
+          frequency: 'weekly',
+          time: scheduleTime,
+          date: scheduleDate,
+          day: dayOfWeek
+        };
+      }
+    }
     // Handle common time expressions
-    const lowerPrompt = prompt.toLowerCase();
-    if (lowerPrompt.includes('every week') || lowerPrompt.includes('weekly') || lowerPrompt.includes('once a week')) {
+    else if (lowerPrompt.includes('every week') || lowerPrompt.includes('weekly') || lowerPrompt.includes('once a week')) {
       parsedIntent.taskDefinition.schedule.frequency = 'weekly';
       scheduleTime = parsedIntent.taskDefinition.schedule.time || currentTime;
       scheduleDate = formatDate(now);
