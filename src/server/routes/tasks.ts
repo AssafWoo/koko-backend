@@ -13,6 +13,7 @@ import { LLMTaskRouter } from '@server/services/llmTaskRouter';
 import crypto from 'crypto';
 import { eventBus, EVENTS, TaskEvent } from '@server/events/EventBus';
 import { createNotificationContent, sendNotification } from '@server/services/notificationService';
+import { needsLLMProcessing, logPatternMatch } from '@server/utils/taskPatterns';
 
 // Extend the Task type to include our custom properties
 interface ExtendedTask extends AppTask {
@@ -180,6 +181,10 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
     const timeOfDayTime = convertTimeOfDayToTime(prompt);
     const lowerPrompt = prompt.toLowerCase();
 
+    // Check if LLM processing is needed
+    const requiresLLM = needsLLMProcessing(prompt, parsedIntent.taskDefinition.type);
+    logPatternMatch(prompt, parsedIntent.taskDefinition.type, requiresLLM);
+
     // Check for day references (this/next day)
     const dayReference = extractDayReference(prompt);
     if (dayReference.day && dayReference.reference) {
@@ -339,7 +344,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
       throw new Error('Could not determine scheduled time for task');
     }
 
-    // Process the task with the appropriate LLM
+    // Process the task with the appropriate LLM only if needed
     const tempTask: AppTask = {
       id: crypto.randomUUID(),
       description: parsedIntent.taskDefinition.description,
@@ -354,7 +359,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
         },
         action: parsedIntent.taskDefinition.action,
         parameters: parsedIntent.taskDefinition.parameters,
-        previewResult: '',
+        previewResult: requiresLLM ? '' : prompt, // Only use prompt as preview if no LLM needed
         deliveryMethod: 'in-app'
       }),
       userId: userId,
@@ -368,7 +373,7 @@ router.post('/', authenticateToken, (async (req: Request, res: Response, next: N
       priority: 0
     };
 
-    const taskContent = await llmRouter.processTask(tempTask, prompt);
+    const taskContent = requiresLLM ? await llmRouter.processTask(tempTask, prompt) : prompt;
 
     // Create the task in the database
     const taskData = {
